@@ -135,6 +135,36 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
     }));
   };
 
+  const handleEdit = async (item: AgentPayment) => {
+    try {
+      const { data, error } = await supabase
+        .from('agent_payments')
+        .select('document_data')
+        .eq('id', item.id)
+        .single();
+      
+      if (error) throw error;
+      
+      let parsedDocuments: any[] = [];
+      if (data.document_data) {
+        try {
+          const parsed = typeof data.document_data === 'string' ? JSON.parse(data.document_data) : data.document_data;
+          parsedDocuments = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+        } catch (e) {
+          console.error('Failed to parse document_data', e);
+        }
+      }
+      
+      setEditingItem({
+        ...item,
+        documents: parsedDocuments
+      });
+    } catch (err) {
+      console.error("Failed to fetch document data for edit", err);
+      setEditingItem(item);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       agentName: '',
@@ -369,7 +399,7 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
                       </td>
                       <td className="px-8 py-6 text-center whitespace-nowrap">
                         <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => setEditingItem(d)} className="text-slate-600 hover:text-blue-600 p-2.5 rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all" title="Modify Entry">✏️</button>
+                          <button onClick={() => handleEdit(d)} className="text-slate-600 hover:text-blue-600 p-2.5 rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all" title="Modify Entry">✏️</button>
                           <button onClick={() => onDelete(d.id)} className="text-slate-600 hover:text-rose-600 p-2.5 rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all" title="Remove Entry">🗑️</button>
                         </div>
                       </td>
@@ -420,7 +450,7 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
 
                 <div className="flex justify-between gap-3 pt-6 border-t border-slate-100 items-center">
                   <div className="flex gap-2">
-                    <button onClick={() => setEditingItem(d)} className="px-6 py-3 bg-blue-50 text-blue-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest border border-blue-200 transition-all active:scale-95 shadow-sm">Edit ✏️</button>
+                    <button onClick={() => handleEdit(d)} className="px-6 py-3 bg-blue-50 text-blue-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest border border-blue-200 transition-all active:scale-95 shadow-sm">Edit ✏️</button>
                     <button onClick={() => onDelete(d.id)} className="px-6 py-3 bg-rose-50 text-rose-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest border border-rose-200 transition-all active:scale-95 shadow-sm">Delete 🗑️</button>
                   </div>
                 </div>

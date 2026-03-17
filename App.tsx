@@ -222,6 +222,7 @@ const App: React.FC = () => {
         passportNumber: c.passport_number,
         projectName: c.project_name,
         agencyName: c.agency_name,
+        totalFees: c.total_fees,
         createdAt: c.created_at,
         payments: c.payments || [],
         documents: c.documents || []
@@ -279,7 +280,7 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('agent_payments')
-        .select('*')
+        .select('id, agent_name, project_name, description, amount, date, user_id, created_at')
         .order('date', { ascending: false });
 
       if (error) {
@@ -373,47 +374,49 @@ const App: React.FC = () => {
       project_name: data.projectName,
       agency_name: data.agencyName,
       status: data.status,
+      total_fees: data.totalFees,
       user_id: user.id
     };
 
-    // Remove project_name if it's causing issues (temporary safety)
+    // Remove project_name or total_fees if it's causing issues (temporary safety)
     // In a real app, we'd want the DB to match the code, but this prevents a hard crash
     // if the user hasn't run the SQL yet.
     try {
       let clientId = data.id;
       let savedData;
       
+      const safeExecute = async (operation: 'insert' | 'update', clientData: any, id?: string) => {
+        let currentData = { ...clientData };
+        let result, error;
+        
+        while (true) {
+          if (operation === 'update') {
+            ({ data: result, error } = await supabase.from('clients').update(currentData).eq('id', id).select().single());
+          } else {
+            ({ data: result, error } = await supabase.from('clients').insert(currentData).select().single());
+          }
+          
+          if (error) {
+            if (error.message.includes('project_name')) {
+              delete currentData.project_name;
+              setDbError("Database: 'project_name' column missing. Please run the SQL fix.");
+              continue;
+            } else if (error.message.includes('total_fees')) {
+              delete currentData.total_fees;
+              setDbError("Database: 'total_fees' column missing. Please run the SQL fix.");
+              continue;
+            }
+            throw error;
+          }
+          return result;
+        }
+      };
+
       // 1. Save main client record
       if (clientId) {
-        const { data: resData, error: updateError } = await supabase.from('clients').update(dbClient).eq('id', clientId).select().single();
-        if (updateError) {
-          if (updateError.message.includes('project_name')) {
-            const { project_name, ...safeClient } = dbClient;
-            const { data: retryData, error: retryError } = await supabase.from('clients').update(safeClient).eq('id', clientId).select().single();
-            if (retryError) throw retryError;
-            savedData = retryData;
-            setDbError("Database Update: 'project_name' column missing. Please run the SQL fix.");
-          } else {
-            throw updateError;
-          }
-        } else {
-          savedData = resData;
-        }
+        savedData = await safeExecute('update', dbClient, clientId);
       } else {
-        const { data: resData, error: insertError } = await supabase.from('clients').insert(dbClient).select().single();
-        if (insertError) {
-          if (insertError.message.includes('project_name')) {
-            const { project_name, ...safeClient } = dbClient;
-            const { data: retryData, error: retryError } = await supabase.from('clients').insert(safeClient).select().single();
-            if (retryError) throw retryError;
-            savedData = retryData;
-            setDbError("Database Insert: 'project_name' column missing. Please run the SQL fix.");
-          } else {
-            throw insertError;
-          }
-        } else {
-          savedData = resData;
-        }
+        savedData = await safeExecute('insert', dbClient);
       }
       
       clientId = savedData.id;

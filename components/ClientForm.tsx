@@ -354,6 +354,23 @@ const ClientForm: React.FC<ClientFormProps> = ({ initialData, existingClients, o
               </div>
             </div>
 
+            {/* Financial Details */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200 pb-1">Financial Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-800 mb-1">Total Fees (৳)</label>
+                  <input 
+                    type="number" 
+                    value={formData.totalFees || ''}
+                    onChange={(e) => setFormData({...formData, totalFees: parseFloat(e.target.value) || undefined})}
+                    className={inputClass}
+                    placeholder="e.g. 500000"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Payment Installments */}
             <div className="space-y-4">
               <div className="flex justify-between items-center border-b border-slate-200 pb-1">

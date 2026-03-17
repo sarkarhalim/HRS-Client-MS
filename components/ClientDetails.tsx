@@ -158,7 +158,15 @@ const ClientDetails: React.FC<ClientDetailsProps> = ({ client, onClose }) => {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h4 className="text-xs font-bold text-slate-500 uppercase">Payment Ledger</h4>
                 <div className="flex flex-wrap gap-2">
+                   {client.totalFees !== undefined && (
+                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-bold">Total Fees: ৳{client.totalFees.toLocaleString()}</span>
+                   )}
                    <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold">Total Paid: ৳{totalPaid.toLocaleString()}</span>
+                   {client.totalFees !== undefined && (
+                     <span className={`${client.totalFees - totalPaid > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-800'} px-3 py-1 rounded-full text-xs font-bold`}>
+                       Due: ৳{Math.max(0, client.totalFees - totalPaid).toLocaleString()}
+                     </span>
+                   )}
                 </div>
               </div>
               

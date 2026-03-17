@@ -33,6 +33,7 @@ export interface Client {
   projectName?: string;
   agencyName: string;
   status: ClientStatus;
+  totalFees?: number;
   payments: PaymentRecord[];
   documents: DocumentRecord[];
   createdAt: string;
