@@ -142,14 +142,12 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
     setIsFetchingBlob(docId);
     try {
       const { data, error } = await supabase
-        .from('documents')
-        .select('data')
-        .eq('id', docId)
+        .from('disbursements')
+        .select('data:document->>data')
+        .eq('document->id', `"${docId}"`)
         .single();
       
       if (error) {
-        // Fallback for disbursements where document might be stored directly in the disbursement record
-        // depending on how the schema was set up. But based on ClientDetails, it's in documents table.
         throw error;
       }
       return data.data;

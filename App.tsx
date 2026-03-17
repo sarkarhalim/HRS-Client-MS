@@ -238,7 +238,7 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('disbursements')
-        .select('*')
+        .select('id, purpose, amount, date, source_fund, mode_of_payment, created_at, doc_id:document->>id, doc_name:document->>name, doc_type:document->>type, doc_size:document->>size')
         .order('date', { ascending: false });
 
       if (error) {
@@ -246,17 +246,28 @@ const App: React.FC = () => {
         throw error;
       }
 
-      const mapped: Disbursement[] = (data || []).map(d => ({
-        ...d,
-        id: d.id,
-        purpose: d.purpose,
-        amount: Number(d.amount),
-        date: d.date,
-        sourceFund: d.source_fund,
-        modeOfPayment: d.mode_of_payment,
-        document: d.document,
-        createdAt: d.created_at
-      }));
+      const mapped: Disbursement[] = (data || []).map(d => {
+        let doc: any = undefined;
+        if (d.doc_id) {
+          doc = {
+            id: d.doc_id,
+            name: d.doc_name,
+            type: d.doc_type,
+            size: Number(d.doc_size)
+          };
+        }
+        return {
+          ...d,
+          id: d.id,
+          purpose: d.purpose,
+          amount: Number(d.amount),
+          date: d.date,
+          sourceFund: d.source_fund,
+          modeOfPayment: d.mode_of_payment,
+          document: doc,
+          createdAt: d.created_at
+        };
+      });
       setDisbursements(mapped);
     } catch (err: any) {
       console.error('Error fetching disbursements:', err.message);
