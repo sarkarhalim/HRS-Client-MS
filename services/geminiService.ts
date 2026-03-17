@@ -48,7 +48,7 @@ export const generateSmartReport = async (clients: Client[], customPrompt?: stri
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-flash-latest",
+      model: "gemini-3-flash-preview",
       contents: finalPrompt,
       config: {
         systemInstruction: "You are a world-class business analyst specialized in consultancy services. Your tone is professional, encouraging, and data-driven.",

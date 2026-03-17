@@ -87,28 +87,7 @@ const App: React.FC = () => {
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState(false);
   const reportRef = React.useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const checkApiKey = async () => {
-      if (window.aistudio) {
-        const selected = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(selected);
-      } else {
-        // Fallback for environments where aistudio is not defined
-        setHasApiKey(true);
-      }
-    };
-    checkApiKey();
-  }, []);
-
-  const handleOpenKeySelector = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setHasApiKey(true);
-    }
-  };
 
   useEffect(() => {
     if (activeTab === 'total-clients') {
@@ -703,9 +682,10 @@ const App: React.FC = () => {
   const dashboardList = useMemo(() => clients.slice(0, 6), [clients]);
 
   const handleDownloadPDF = async () => {
-    if (!reportRef.current) return;
+    const element = document.getElementById('report-content-preview') || document.getElementById('report-content');
+    if (!element) return;
     try {
-      const canvas = await html2canvas(reportRef.current, {
+      const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
@@ -982,19 +962,8 @@ const App: React.FC = () => {
               </div>
 
               <div className="flex flex-wrap justify-center gap-4">
-                {!hasApiKey && (
-                  <button 
-                    onClick={handleOpenKeySelector}
-                    className="bg-amber-500 text-white px-12 py-5 rounded-2xl font-bold uppercase tracking-widest text-[10px] shadow-2xl active:scale-95 transition-all"
-                  >
-                    🔑 Select API Key to Enable AI
-                  </button>
-                )}
                 <button 
                   onClick={async () => { 
-                    if (!hasApiKey && window.aistudio) {
-                      await handleOpenKeySelector();
-                    }
                     setIsGeneratingReport(true); 
                     const r = await generateSmartReport(clients, customPrompt.trim() || undefined); 
                     setAiReport(r); 
@@ -1070,7 +1039,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex-1 overflow-y-auto bg-slate-100 p-4 md:p-12 lg:p-20 custom-scrollbar">
             <div className="bg-white shadow-2xl rounded-[2rem] md:rounded-[3rem] mx-auto max-w-5xl overflow-hidden border border-slate-200">
-              <div className="p-8 md:p-16 lg:p-24">
+              <div id="report-content-preview" className="p-8 md:p-16 lg:p-24">
                 <div className="mb-12 border-b-4 border-slate-900 pb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                   <div>
                     <h1 className="text-3xl md:text-5xl font-bold tracking-tight uppercase mb-2 text-slate-900">{appConfig.agencyName}</h1>
