@@ -113,6 +113,8 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
     reader.readAsDataURL(file);
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const resetForm = () => {
     setFormData({
       purpose: '',
@@ -476,8 +478,13 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
                   console.error('Please fill required fields');
                   return;
                 }
-                await onSave(formData);
-                resetForm();
+                setIsSubmitting(true);
+                try {
+                  await onSave(formData);
+                  resetForm();
+                } finally {
+                  setIsSubmitting(false);
+                }
               }}
             >
               <div className="space-y-6">
@@ -606,9 +613,10 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
               <button 
                 type="submit"
                 form="disbursement-form"
-                className="flex-[2] py-5 px-10 bg-blue-600 text-white rounded-2xl font-bold uppercase tracking-widest hover:bg-blue-700 shadow-2xl shadow-blue-500/30 transition-all text-[10px] active:scale-95"
+                disabled={isSubmitting}
+                className="flex-[2] py-5 px-10 bg-blue-600 text-white rounded-2xl font-bold uppercase tracking-widest hover:bg-blue-700 shadow-2xl shadow-blue-500/30 transition-all text-[10px] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {editingItem ? 'Update Audit Entry' : 'Seal Transaction Record'}
+                {isSubmitting ? 'Saving...' : (editingItem ? 'Update Audit Entry' : 'Seal Transaction Record')}
               </button>
             </div>
           </div>

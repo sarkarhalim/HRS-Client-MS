@@ -464,7 +464,43 @@ const App: React.FC = () => {
 
       await Promise.all([paymentOps(), documentOps()]);
       
-      await fetchClients();
+      // Fetch only the updated client to avoid downloading the entire database
+      const { data: updatedClientData, error: fetchError } = await supabase
+        .from('clients')
+        .select(`
+          *,
+          payments (*),
+          documents (id, name, type, size, client_id)
+        `)
+        .eq('id', clientId)
+        .single();
+
+      if (!fetchError && updatedClientData) {
+        const mappedClient: Client = {
+          ...updatedClientData,
+          passportNumber: updatedClientData.passport_number,
+          projectName: updatedClientData.project_name,
+          agencyName: updatedClientData.agency_name,
+          totalFees: updatedClientData.total_fees,
+          createdAt: updatedClientData.created_at,
+          payments: updatedClientData.payments || [],
+          documents: updatedClientData.documents || []
+        };
+        
+        setClients(prev => {
+          const index = prev.findIndex(c => c.id === clientId);
+          if (index >= 0) {
+            const newList = [...prev];
+            newList[index] = mappedClient;
+            return newList;
+          } else {
+            return [mappedClient, ...prev].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          }
+        });
+      } else {
+        await fetchClients(); // Fallback
+      }
+      
       setIsFormOpen(false);
       setEditingClient(undefined);
     } catch (err: any) {
@@ -490,14 +526,52 @@ const App: React.FC = () => {
     }
 
     try {
+      let savedId = data.id;
       if (data.id) {
         const { error } = await supabase.from('disbursements').update(dbDisbursement).eq('id', data.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('disbursements').insert(dbDisbursement);
+        const { data: inserted, error } = await supabase.from('disbursements').insert(dbDisbursement).select('id').single();
         if (error) throw error;
+        savedId = inserted.id;
       }
-      await fetchDisbursements();
+      
+      const { data: newDisbursement, error: fetchError } = await supabase
+        .from('disbursements')
+        .select('id, purpose, amount, date, source_fund, mode_of_payment, created_at, doc_id:document->>id, doc_name:document->>name, doc_type:document->>type, doc_size:document->>size')
+        .eq('id', savedId)
+        .single();
+        
+      if (!fetchError && newDisbursement) {
+        const mapped: Disbursement = {
+          id: newDisbursement.id,
+          purpose: newDisbursement.purpose,
+          amount: Number(newDisbursement.amount),
+          date: newDisbursement.date,
+          sourceFund: newDisbursement.source_fund,
+          modeOfPayment: newDisbursement.mode_of_payment,
+          createdAt: newDisbursement.created_at,
+          document: newDisbursement.doc_id ? {
+            id: newDisbursement.doc_id,
+            name: newDisbursement.doc_name,
+            type: newDisbursement.doc_type,
+            size: Number(newDisbursement.doc_size),
+            data: ''
+          } : undefined
+        };
+        setDisbursements(prev => {
+          const index = prev.findIndex(d => d.id === savedId);
+          if (index >= 0) {
+            const newList = [...prev];
+            newList[index] = mapped;
+            return newList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          } else {
+            return [mapped, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          }
+        });
+      } else {
+        await fetchDisbursements();
+      }
     } catch (err: any) {
       console.error("Disbursement save error", err);
       setDbError(`Failed to save disbursement: ${err.message}`);
@@ -508,7 +582,7 @@ const App: React.FC = () => {
     try {
       const { error } = await supabase.from('disbursements').delete().eq('id', id);
       if (error) throw error;
-      await fetchDisbursements();
+      setDisbursements(prev => prev.filter(d => d.id !== id));
     } catch (err: any) {
       setDbError(`Deletion Error: ${err.message}`);
     }
@@ -532,14 +606,54 @@ const App: React.FC = () => {
     }
 
     try {
+      let savedId = data.id;
       if (data.id) {
         const { error } = await supabase.from('agent_payments').update(dbAgentPayment).eq('id', data.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('agent_payments').insert(dbAgentPayment);
+        const { data: inserted, error } = await supabase.from('agent_payments').insert(dbAgentPayment).select('id').single();
         if (error) throw error;
+        savedId = inserted.id;
       }
-      await fetchAgentPayments();
+      
+      const { data: newPayment, error: fetchError } = await supabase
+        .from('agent_payments')
+        .select('id, agent_name, project_name, description, amount, date, user_id, created_at, document_data')
+        .eq('id', savedId)
+        .single();
+
+      if (!fetchError && newPayment) {
+        let parsedDocuments = [];
+        if (newPayment.document_data) {
+          try {
+            parsedDocuments = JSON.parse(newPayment.document_data);
+          } catch (e) {
+            console.error("Failed to parse document data", e);
+          }
+        }
+        const mapped: AgentPayment = {
+          id: newPayment.id,
+          agentName: newPayment.agent_name,
+          projectName: newPayment.project_name || '',
+          purpose: newPayment.description,
+          amount: Number(newPayment.amount),
+          date: newPayment.date,
+          documents: parsedDocuments,
+          createdAt: newPayment.created_at
+        };
+        setAgentPayments(prev => {
+          const index = prev.findIndex(p => p.id === savedId);
+          if (index >= 0) {
+            const newList = [...prev];
+            newList[index] = mapped;
+            return newList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          } else {
+            return [mapped, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          }
+        });
+      } else {
+        await fetchAgentPayments();
+      }
     } catch (err: any) {
       console.error("Agent payment save error", err);
       setDbError(`Failed to save agent payment: ${err.message}`);
@@ -550,7 +664,7 @@ const App: React.FC = () => {
     try {
       const { error } = await supabase.from('agent_payments').delete().eq('id', id);
       if (error) throw error;
-      await fetchAgentPayments();
+      setAgentPayments(prev => prev.filter(p => p.id !== id));
     } catch (err: any) {
       setDbError(`Deletion Error: ${err.message}`);
     }
@@ -828,7 +942,7 @@ const App: React.FC = () => {
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                               <button onClick={() => setViewingClient(c)} className="p-2.5 text-slate-500 hover:text-slate-900 bg-white rounded-xl border border-slate-200" title="Inspect Profile">👁️</button>
                               <button onClick={() => { setEditingClient(c); setIsFormOpen(true); }} className="p-2.5 text-slate-500 hover:text-blue-600 bg-white rounded-xl border border-slate-200" title="Modify Entry">✏️</button>
-                              <button onClick={() => { supabase.from('clients').delete().eq('id', c.id).then(fetchClients); }} className="p-2.5 text-slate-500 hover:text-rose-600 bg-white rounded-xl border border-slate-200" title="Wipe Record">🗑️</button>
+                              <button onClick={() => { supabase.from('clients').delete().eq('id', c.id).then(({error}) => { if(!error) setClients(prev => prev.filter(client => client.id !== c.id)); else setDbError(error.message); }); }} className="p-2.5 text-slate-500 hover:text-rose-600 bg-white rounded-xl border border-slate-200" title="Wipe Record">🗑️</button>
                             </div>
                           </td>
                         </tr>

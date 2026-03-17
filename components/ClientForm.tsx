@@ -5,7 +5,7 @@ import { Client, ClientStatus, PaymentRecord, DocumentRecord } from '../types';
 interface ClientFormProps {
   initialData?: Client;
   existingClients: Client[];
-  onSubmit: (data: Partial<Client>) => void;
+  onSubmit: (data: Partial<Client>) => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -128,12 +128,19 @@ const ClientForm: React.FC<ClientFormProps> = ({ initialData, existingClients, o
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (duplicates.passport) {
       console.warn(`Warning: Passport ${formData.passportNumber} is already registered to ${duplicates.passport.name}. Proceeding anyway.`);
     }
-    onSubmit(formData);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(formData);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const totalPaid = (formData.payments || []).reduce((sum, p) => sum + p.amount, 0);
@@ -451,10 +458,11 @@ const ClientForm: React.FC<ClientFormProps> = ({ initialData, existingClients, o
           </button>
           <button 
             type="submit"
+            disabled={isSubmitting}
             onClick={(e) => handleSubmit(e as any)}
-            className="flex-1 py-3 px-4 bg-blue-600 rounded-lg text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+            className="flex-1 py-3 px-4 bg-blue-600 rounded-lg text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {initialData ? 'Update Record' : 'Save New Client'}
+            {isSubmitting ? 'Saving...' : (initialData ? 'Update Record' : 'Save New Client')}
           </button>
         </div>
       </div>
