@@ -1,0 +1,7 @@
+{
+  "name": "HRS Client MS",
+  "description": "A professional Client Management System for student and recruitment consultancy, featuring AI-powered reporting and comprehensive tracking.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
