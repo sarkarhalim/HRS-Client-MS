@@ -9,8 +9,14 @@ export const generateSmartReport = async (clients: Client[], customPrompt?: stri
 
   // Initialize AI with the standard environment variable
   // API_KEY is used when a user selects a key, GEMINI_API_KEY is the default platform key
-  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-  const ai = new GoogleGenAI({ apiKey: apiKey! });
+  let apiKey = '';
+  if (typeof process !== 'undefined') {
+    apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || '';
+  } else {
+    apiKey = (window as any).process?.env?.API_KEY || (window as any).process?.env?.GEMINI_API_KEY || '';
+  }
+  
+  const ai = new GoogleGenAI({ apiKey: apiKey });
   
   // Extract only necessary data for analysis to save tokens and improve privacy
   const clientSummary = clients.map(c => ({
