@@ -662,6 +662,8 @@ const App: React.FC = () => {
         (c.agencyName || '').toLowerCase().includes(q) ||
         (c.projectName || '').toLowerCase().includes(q) ||
         (c.reference || '').toLowerCase().includes(q) ||
+        (c.phone || '').toLowerCase().includes(q) ||
+        (c.email || '').toLowerCase().includes(q) ||
         c.country.toLowerCase().includes(q)
       );
     }
@@ -784,10 +786,28 @@ const App: React.FC = () => {
 
       {(activeTab === 'total-clients') && (
         <div className="space-y-8 animate-in fade-in duration-500">
-          <div className="flex bg-slate-200 p-1.5 rounded-2xl w-fit">
-            <button onClick={() => { setClientViewMode('overview'); setProjectFilter('All'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${clientViewMode === 'overview' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600'}`}>Metrics</button>
-            <button onClick={() => { setClientViewMode('directory'); setProjectFilter('All'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${clientViewMode === 'directory' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600'}`}>Directory</button>
-            <button onClick={() => setClientViewMode('projects')} className={`px-8 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${clientViewMode === 'projects' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600'}`}>All Projects</button>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex bg-slate-200 p-1.5 rounded-2xl w-fit">
+              <button onClick={() => { setClientViewMode('overview'); setProjectFilter('All'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${clientViewMode === 'overview' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600'}`}>Metrics</button>
+              <button onClick={() => { setClientViewMode('directory'); setProjectFilter('All'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${clientViewMode === 'directory' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600'}`}>Directory</button>
+              <button onClick={() => setClientViewMode('projects')} className={`px-8 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${clientViewMode === 'projects' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600'}`}>All Projects</button>
+            </div>
+            
+            <div className="relative flex-1 max-w-md w-full">
+              <input 
+                type="text" 
+                placeholder="Search clients by Name, Passport, Project, Email, Phone..." 
+                value={searchQuery} 
+                onChange={e => {
+                  setSearchQuery(e.target.value);
+                  if (e.target.value && clientViewMode !== 'directory') {
+                    setClientViewMode('directory');
+                  }
+                }} 
+                className="w-full pl-12 pr-6 py-3 bg-white border-2 border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-slate-950 font-semibold text-sm transition-all shadow-sm" 
+              />
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+            </div>
           </div>
 
           {clientViewMode === 'overview' ? (
@@ -883,11 +903,7 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 items-center">
-                <div className="relative flex-1 w-full">
-                  <input type="text" placeholder="Search by Name, Passport, Project or Reference..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-slate-950 font-semibold text-sm" />
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-                </div>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 items-center justify-end">
                 {projectFilter !== 'All' && (
                   <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl border border-blue-100">
                     <span className="text-[10px] font-bold uppercase tracking-widest">Project: {projectFilter}</span>
