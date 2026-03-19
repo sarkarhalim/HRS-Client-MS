@@ -128,16 +128,53 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
     setIsFormOpen(false);
   };
 
-  const base64ToBlob = (base64: string) => {
-    const parts = base64.split(';base64,');
-    const contentType = parts[0].split(':')[1];
-    const raw = window.atob(parts[1]);
-    const rawLength = raw.length;
-    const uInt8Array = new Uint8Array(rawLength);
-    for (let i = 0; i < rawLength; ++i) {
-      uInt8Array[i] = raw.charCodeAt(i);
+  const base64ToBlob = async (base64: string, fallbackMimeType?: string) => {
+    try {
+      if (!base64 || typeof base64 !== 'string') {
+        throw new Error("Invalid base64 data");
+      }
+      
+      if (base64.startsWith('http')) {
+        const response = await fetch(base64);
+        return await response.blob();
+      }
+
+      const safeAtob = (str: string) => {
+        let b64 = str.replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+/=]/g, '');
+        while (b64.length % 4) b64 += '=';
+        return window.atob(b64);
+      };
+
+      if (base64.startsWith('data:')) {
+        const arr = base64.split(',');
+        if (arr.length < 2) throw new Error("Invalid data URI");
+        
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : (fallbackMimeType || 'application/octet-stream');
+        
+        const bstr = safeAtob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        
+        return new Blob([u8arr], { type: mime });
+      }
+      
+      const bstr = safeAtob(base64);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      return new Blob([u8arr], { type: fallbackMimeType || 'application/octet-stream' });
+      
+    } catch (e) {
+      console.error("base64ToBlob error:", e);
+      throw e;
     }
-    return new Blob([uInt8Array], { type: contentType });
   };
 
   const getDocData = async (docId: string) => {
@@ -146,7 +183,7 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
       const { data, error } = await supabase
         .from('disbursements')
         .select('data:document->>data')
-        .eq('document->id', `"${docId}"`)
+        .eq('document->>id', docId)
         .single();
       
       if (error) {
@@ -168,7 +205,7 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
     if (!data) return;
 
     try {
-      const blob = base64ToBlob(data);
+      const blob = await base64ToBlob(data, doc.type);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -176,7 +213,8 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      // Increased timeout to prevent corrupted downloads
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch (e) {
       console.error("Download failed", e);
       console.error("Failed to download document.");
@@ -184,19 +222,24 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
   };
 
   const handlePreview = async (doc: DocumentRecord) => {
+    setPreviewDoc(doc);
+    
     const data = doc.data || await getDocData(doc.id);
-    if (!data) return;
+    if (!data) {
+      setPreviewDoc(null);
+      return;
+    }
 
     if (previewUrl) URL.revokeObjectURL(previewUrl);
 
     try {
-      const blob = base64ToBlob(data);
+      const blob = await base64ToBlob(data, doc.type);
       const url = URL.createObjectURL(blob);
       setPreviewUrl(url);
-      setPreviewDoc(doc);
     } catch (e) {
       console.error("Preview failed", e);
       console.error("Failed to generate preview.");
+      setPreviewDoc(null);
     }
   };
 
@@ -648,11 +691,28 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
           </div>
           <div className="flex-1 overflow-hidden flex items-center justify-center p-4">
             {previewDoc.type.includes('pdf') ? (
-              <iframe 
-                src={previewUrl || ''} 
-                className="w-full h-full bg-white rounded-lg"
-                title="PDF Preview"
-              />
+              <div className="flex flex-col items-center justify-center h-full w-full bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 p-8 text-center">
+                <span className="text-6xl mb-4">📄</span>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">PDF Document</h3>
+                <p className="text-sm text-slate-500 mb-6 max-w-sm">
+                  Browser security restricts direct PDF preview in this environment. 
+                  Please download the file or open it in a new tab to view its contents.
+                </p>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => window.open(previewUrl || '', '_blank')}
+                    className="px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold transition-all shadow-sm"
+                  >
+                    Open in New Tab
+                  </button>
+                  <button 
+                    onClick={() => handleDownload(previewDoc)}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-sm"
+                  >
+                    Download PDF
+                  </button>
+                </div>
+              </div>
             ) : (
               <img 
                 src={previewUrl || ''} 

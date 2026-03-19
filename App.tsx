@@ -259,7 +259,7 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('agent_payments')
-        .select('id, agent_name, project_name, description, amount, date, user_id, created_at')
+        .select('id, agent_name, project_name, description, amount, date, user_id, created_at, document_data')
         .order('date', { ascending: false });
 
       if (error) {
@@ -605,7 +605,8 @@ const App: React.FC = () => {
         let parsedDocuments = [];
         if (newPayment.document_data) {
           try {
-            parsedDocuments = JSON.parse(newPayment.document_data);
+            const parsed = typeof newPayment.document_data === 'string' ? JSON.parse(newPayment.document_data) : newPayment.document_data;
+            parsedDocuments = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
           } catch (e) {
             console.error("Failed to parse document data", e);
           }

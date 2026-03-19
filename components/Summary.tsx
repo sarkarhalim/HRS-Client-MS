@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Client } from '../types';
 
 interface SummaryProps {
@@ -8,6 +8,8 @@ interface SummaryProps {
 }
 
 const Summary: React.FC<SummaryProps> = ({ clients, agencyName }) => {
+  const [showPrintWarning, setShowPrintWarning] = useState(false);
+
   const aggregatedData = useMemo(() => {
     const countries: Record<string, number> = {};
     const agencies: Record<string, number> = {};
@@ -31,6 +33,11 @@ const Summary: React.FC<SummaryProps> = ({ clients, agencyName }) => {
   }, [clients]);
 
   const handlePrint = () => {
+    if (window.self !== window.top) {
+      setShowPrintWarning(true);
+      setTimeout(() => setShowPrintWarning(false), 5000);
+      return;
+    }
     window.print();
   };
 
@@ -64,19 +71,26 @@ const Summary: React.FC<SummaryProps> = ({ clients, agencyName }) => {
           <h3 className="text-xl font-bold text-slate-800">Database Analytics Summary</h3>
           <p className="text-sm text-slate-500">Aggregated statistics for all registered applications.</p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg font-semibold hover:bg-slate-900 transition-all text-sm shadow-md"
-          >
-            <span>🖨️</span> Preview / Save as PDF
-          </button>
-          <button 
-            onClick={downloadCSV}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all text-sm shadow-md"
-          >
-            <span>📥</span> Download CSV
-          </button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-3">
+            <button 
+              onClick={handlePrint}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg font-semibold hover:bg-slate-900 transition-all text-sm shadow-md"
+            >
+              <span>🖨️</span> Preview / Save as PDF
+            </button>
+            <button 
+              onClick={downloadCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all text-sm shadow-md"
+            >
+              <span>📥</span> Download CSV
+            </button>
+          </div>
+          {showPrintWarning && (
+            <div className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-md border border-amber-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+              ⚠️ Printing is restricted in this preview. Please open the app in a new tab to print.
+            </div>
+          )}
         </div>
       </div>
 

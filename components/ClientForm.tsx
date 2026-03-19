@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Client, ClientStatus, PaymentRecord, DocumentRecord } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface ClientFormProps {
   initialData?: Client;
@@ -29,6 +30,15 @@ const ClientForm: React.FC<ClientFormProps> = ({ initialData, existingClients, o
   );
 
   const [newInstallment, setNewInstallment] = useState({ amount: '', date: new Date().toISOString().split('T')[0], note: '' });
+  const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isFetchingBlob, setIsFetchingBlob] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   // Duplicate Check Logic
   const duplicates = useMemo(() => {
@@ -105,19 +115,114 @@ const ClientForm: React.FC<ClientFormProps> = ({ initialData, existingClients, o
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleDownload = (doc: DocumentRecord) => {
-    const link = document.createElement('a');
-    link.href = doc.data;
-    link.download = doc.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const base64ToBlob = async (base64: string, fallbackMimeType?: string) => {
+    try {
+      if (!base64 || typeof base64 !== 'string') {
+        throw new Error("Invalid base64 data");
+      }
+      
+      if (base64.startsWith('http')) {
+        const response = await fetch(base64);
+        return await response.blob();
+      }
+
+      const safeAtob = (str: string) => {
+        let b64 = str.replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+/=]/g, '');
+        while (b64.length % 4) b64 += '=';
+        return window.atob(b64);
+      };
+
+      if (base64.startsWith('data:')) {
+        const arr = base64.split(',');
+        if (arr.length < 2) throw new Error("Invalid data URI");
+        
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : (fallbackMimeType || 'application/octet-stream');
+        
+        const bstr = safeAtob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        
+        return new Blob([u8arr], { type: mime });
+      }
+      
+      const bstr = safeAtob(base64);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      return new Blob([u8arr], { type: fallbackMimeType || 'application/octet-stream' });
+      
+    } catch (e) {
+      console.error("base64ToBlob error:", e);
+      throw e;
+    }
   };
 
-  const handlePreview = (doc: DocumentRecord) => {
-    const win = window.open();
-    if (win) {
-      win.document.write(`<title>${doc.name}</title><iframe src="${doc.data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+  const getDocData = async (docId: string) => {
+    setIsFetchingBlob(docId);
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('data')
+        .eq('id', docId)
+        .single();
+      
+      if (error) throw error;
+      return data.data;
+    } catch (e) {
+      console.error("Failed to fetch document data", e);
+      console.error("Failed to load document content.");
+      return null;
+    } finally {
+      setIsFetchingBlob(null);
+    }
+  };
+
+  const handleDownload = async (doc: DocumentRecord) => {
+    const data = doc.data || await getDocData(doc.id);
+    if (!data) return;
+
+    try {
+      const blob = await base64ToBlob(data, doc.type);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+      console.error("Download failed", e);
+      console.error("Failed to download document.");
+    }
+  };
+
+  const handlePreview = async (doc: DocumentRecord) => {
+    setPreviewDoc(doc);
+    
+    const data = doc.data || await getDocData(doc.id);
+    if (!data) {
+      setPreviewDoc(null);
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    
+    try {
+      const blob = await base64ToBlob(data, doc.type);
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+    } catch (e) {
+      console.error("Preview failed", e);
+      console.error("Failed to generate preview.");
+      setPreviewDoc(null);
     }
   };
 
@@ -343,16 +448,18 @@ const ClientForm: React.FC<ClientFormProps> = ({ initialData, existingClients, o
                         <button 
                           type="button"
                           onClick={() => handlePreview(doc)}
-                          className="text-[10px] bg-blue-50 text-blue-700 px-3 py-1 rounded font-bold hover:bg-blue-100 transition-colors flex items-center gap-1"
+                          disabled={isFetchingBlob === doc.id}
+                          className="text-[10px] bg-blue-50 text-blue-700 px-3 py-1 rounded font-bold hover:bg-blue-100 transition-colors flex items-center gap-1 disabled:opacity-50"
                         >
-                          👁️ View
+                          {isFetchingBlob === doc.id ? '⏳...' : '👁️ View'}
                         </button>
                         <button 
                           type="button"
                           onClick={() => handleDownload(doc)}
-                          className="text-[10px] bg-slate-100 text-slate-700 px-3 py-1 rounded font-bold hover:bg-slate-200 transition-colors flex items-center gap-1"
+                          disabled={isFetchingBlob === doc.id}
+                          className="text-[10px] bg-slate-100 text-slate-700 px-3 py-1 rounded font-bold hover:bg-slate-200 transition-colors flex items-center gap-1 disabled:opacity-50"
                         >
-                          📥 Save
+                          {isFetchingBlob === doc.id ? '⏳...' : '📥 Save'}
                         </button>
                       </div>
                     </div>
@@ -466,6 +573,75 @@ const ClientForm: React.FC<ClientFormProps> = ({ initialData, existingClients, o
           </button>
         </div>
       </div>
+
+      {/* Document Preview Modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm" onClick={() => setPreviewDoc(null)}></div>
+          <div className="relative w-full max-w-5xl h-[85vh] bg-slate-100 rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="flex items-center justify-between p-6 bg-white border-b border-slate-200 shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">{previewDoc.name}</h3>
+                <p className="text-sm text-slate-500 font-medium mt-1">
+                  {previewDoc.type.toUpperCase()} • {(previewDoc.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => handleDownload(previewDoc)}
+                  className="px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl font-bold transition-colors flex items-center gap-2"
+                >
+                  <span>⬇️</span> Download
+                </button>
+                <button 
+                  onClick={() => setPreviewDoc(null)}
+                  className="w-10 h-10 flex items-center justify-center bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-xl font-bold transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-6 flex items-center justify-center bg-slate-100/50">
+              {isFetchingBlob === previewDoc.id ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                  <p className="text-slate-500 font-bold animate-pulse">Loading secure document...</p>
+                </div>
+              ) : previewDoc.type.includes('pdf') ? (
+                <div className="flex flex-col items-center justify-center h-full w-full bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 p-8 text-center">
+                  <span className="text-6xl mb-4">📄</span>
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">PDF Document</h3>
+                  <p className="text-sm text-slate-500 mb-6 max-w-sm">
+                    Browser security restricts direct PDF preview in this environment. 
+                    Please download the file or open it in a new tab to view its contents.
+                  </p>
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => window.open(previewUrl || '', '_blank')}
+                      className="px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold transition-all shadow-sm"
+                    >
+                      Open in New Tab
+                    </button>
+                    <button 
+                      onClick={() => handleDownload(previewDoc)}
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-sm"
+                    >
+                      Download PDF
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <img 
+                  src={previewUrl || ''} 
+                  alt="Preview" 
+                  className="max-w-full max-h-full object-contain rounded-xl shadow-md"
+                  referrerPolicy="no-referrer"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
