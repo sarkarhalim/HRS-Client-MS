@@ -1,6 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { Client } from "../types";
+import { Client, Disbursement, AgentPayment } from "../types";
 
 export const generateSmartReport = async (clients: Client[], customPrompt?: string) => {
   if (!clients || clients.length === 0) {
@@ -66,5 +66,88 @@ export const generateSmartReport = async (clients: Client[], customPrompt?: stri
   } catch (error: any) {
     console.error("AI Report Generation Error:", error);
     return `### ⚠️ Analysis Failed\n\nThere was an error communicating with the AI service. Details: ${error.message || 'Unknown Error'}. Please ensure your API connection is active.`;
+  }
+};
+
+export const chatWithData = async (
+  clients: Client[],
+  disbursements: Disbursement[],
+  agentPayments: AgentPayment[],
+  chatHistory: { role: 'user' | 'model', parts: { text: string }[] }[],
+  newMessage: string
+) => {
+  let apiKey = '';
+  if (typeof process !== 'undefined') {
+    apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || '';
+  } else {
+    apiKey = (window as any).process?.env?.API_KEY || (window as any).process?.env?.GEMINI_API_KEY || '';
+  }
+  
+  const ai = new GoogleGenAI({ apiKey: apiKey });
+
+  // Prepare a condensed version of the data to avoid exceeding token limits
+  const dataContext = {
+    clients: clients.map(c => ({
+      name: c.name,
+      status: c.status,
+      country: c.country,
+      totalPaid: (c.payments || []).reduce((sum, p) => sum + p.amount, 0),
+      projectName: c.projectName,
+      contact: c.contact,
+      createdAt: c.createdAt
+    })),
+    disbursements: disbursements.map(d => ({
+      amount: d.amount,
+      purpose: d.purpose,
+      date: d.date
+    })),
+    agentPayments: agentPayments.map(a => ({
+      agentName: a.agentName,
+      amount: a.amount,
+      date: a.date,
+      purpose: a.purpose
+    }))
+  };
+
+  const systemInstruction = `You are an AI assistant for a recruitment and student consultancy firm's management app.
+You have access to the following current data snapshot:
+${JSON.stringify(dataContext)}
+
+Answer the user's questions accurately based ONLY on this data. Be concise, professional, and helpful. If asked for summaries or reports, provide them clearly using Markdown. If the data doesn't contain the answer, say so.`;
+
+  try {
+    const chat = ai.chats.create({
+      model: "gemini-3.1-pro-preview",
+      config: {
+        systemInstruction,
+        temperature: 0.2,
+      }
+    });
+
+    // We need to send the history manually if we want context, but the SDK's chat.sendMessage 
+    // maintains its own history. Since we are creating a new chat instance each time, 
+    // we should ideally pass the history. Let's just use generateContent with history.
+    
+    const contents = [
+      ...chatHistory.map(msg => ({
+        role: msg.role,
+        parts: msg.parts
+      })),
+      { role: 'user', parts: [{ text: newMessage }] }
+    ];
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-pro-preview",
+      contents: contents as any,
+      config: {
+        systemInstruction,
+        temperature: 0.2,
+      }
+    });
+
+    return response.text || "I'm sorry, I couldn't generate a response.";
+  } catch (error: any) {
+    console.error("AI Chat Error:", error);
+    return `Error: ${error.message || 'Unknown Error'}`;
   }
 };

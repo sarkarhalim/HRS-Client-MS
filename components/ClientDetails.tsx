@@ -26,7 +26,7 @@ const ClientDetails: React.FC<ClientDetailsProps> = ({ client, onClose }) => {
           .eq('client_id', client.id);
         
         if (error) throw error;
-        setDocuments(data || []);
+        setDocuments((data || []).map(d => ({ ...d, data: '' })));
       } catch (e) {
         console.error("Failed to load document metadata", e);
       } finally {
