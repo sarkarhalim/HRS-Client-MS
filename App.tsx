@@ -829,7 +829,10 @@ const App: React.FC = () => {
 
               <div className="lg:col-span-8 bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
                 <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
-                  <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px]">Real-time Directory</h3>
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px]">Real-time Directory</h3>
+                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-bold">{filteredClients.length} Total</span>
+                  </div>
                   <button onClick={() => setClientViewMode('directory')} className="text-blue-600 text-[10px] font-bold uppercase tracking-widest">View All ❯</button>
                 </div>
                 <div className="overflow-y-auto max-h-[500px]">
@@ -858,8 +861,8 @@ const App: React.FC = () => {
             </div>
           ) : clientViewMode === 'projects' ? (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div className="relative w-full">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="relative w-full md:flex-1">
                   <input 
                     type="text" 
                     placeholder="Search Projects..." 
@@ -868,6 +871,9 @@ const App: React.FC = () => {
                     className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-slate-950 font-bold text-sm" 
                   />
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                </div>
+                <div className="bg-slate-100 px-4 py-2 rounded-xl text-[10px] font-bold text-slate-600 uppercase tracking-widest border border-slate-200 whitespace-nowrap">
+                  {filteredProjects.length} {filteredProjects.length === 1 ? 'Project' : 'Projects'} Found
                 </div>
               </div>
 
@@ -903,21 +909,26 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 items-center justify-end">
-                {projectFilter !== 'All' && (
-                  <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl border border-blue-100">
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Project: {projectFilter}</span>
-                    <button onClick={() => setProjectFilter('All')} className="font-semibold hover:text-blue-900">✕</button>
-                  </div>
-                )}
-                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)} className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-[10px] uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-auto">
-                   <option value="All">All Status Levels</option>
-                   <option value={ClientStatus.PROCESSING}>Processing Stage</option>
-                   <option value={ClientStatus.PENDING}>Review/Pending</option>
-                   <option value={ClientStatus.COMPLETED}>Success/Completed</option>
-                   <option value={ClientStatus.CANCELLED}>Void/Cancelled</option>
-                </select>
-                <button onClick={() => { setEditingClient(undefined); setIsFormOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/30 active:scale-95 transition-all w-full md:w-auto">+ New File</button>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="bg-slate-100 px-4 py-2 rounded-xl text-[10px] font-bold text-slate-600 uppercase tracking-widest border border-slate-200 whitespace-nowrap">
+                  {filteredClients.length} {filteredClients.length === 1 ? 'Client' : 'Clients'} Found
+                </div>
+                <div className="flex flex-col md:flex-row gap-4 items-center">
+                  {projectFilter !== 'All' && (
+                    <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl border border-blue-100">
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Project: {projectFilter}</span>
+                      <button onClick={() => setProjectFilter('All')} className="font-semibold hover:text-blue-900">✕</button>
+                    </div>
+                  )}
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)} className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-[10px] uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-auto">
+                     <option value="All">All Status Levels</option>
+                     <option value={ClientStatus.PROCESSING}>Processing Stage</option>
+                     <option value={ClientStatus.PENDING}>Review/Pending</option>
+                     <option value={ClientStatus.COMPLETED}>Success/Completed</option>
+                     <option value={ClientStatus.CANCELLED}>Void/Cancelled</option>
+                  </select>
+                  <button onClick={() => { setEditingClient(undefined); setIsFormOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/30 active:scale-95 transition-all w-full md:w-auto">+ New File</button>
+                </div>
               </div>
 
               <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
