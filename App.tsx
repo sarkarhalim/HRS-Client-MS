@@ -9,11 +9,8 @@ import Settings from './components/Settings';
 import Summary from './components/Summary';
 import { StatusDistribution, RevenueChart } from './components/Charts';
 import { Client, ClientStatus, AuthMode, User, Disbursement, DocumentRecord, AgentPayment } from './types';
-import { generateSmartReport } from './services/geminiService';
 import { supabase } from './lib/supabase';
 import { NAVIGATION_ITEMS } from './constants';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 const StatCard: React.FC<{ label: string, value: string | number, icon: string, color: string, onClick?: () => void, isActive?: boolean }> = ({ label, value, icon, color, onClick, isActive }) => (
   <button 
@@ -83,11 +80,6 @@ const App: React.FC = () => {
   const [viewingClient, setViewingClient] = useState<Client | undefined>();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [aiReport, setAiReport] = useState<string | null>(null);
-  const [customPrompt, setCustomPrompt] = useState('');
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const reportRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (activeTab === 'total-clients') {
@@ -684,30 +676,6 @@ const App: React.FC = () => {
   const overviewList = useMemo(() => filteredClients.slice(0, 15), [filteredClients]);
   const dashboardList = useMemo(() => clients.slice(0, 6), [clients]);
 
-  const handleDownloadPDF = async () => {
-    const element = document.getElementById('report-content-preview') || document.getElementById('report-content');
-    if (!element) return;
-    try {
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`AI_Strategic_Report_${new Date().toISOString().split('T')[0]}.pdf`);
-    } catch (error) {
-      console.error("PDF Generation Error:", error);
-      setDbError("Failed to generate PDF. Please try again.");
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -971,120 +939,6 @@ const App: React.FC = () => {
         <div className="space-y-8 animate-in slide-in-from-right-6 duration-700">
           <StatCard label="Lifecycle Revenue Volume" value={`৳${stats.totalPayment.toLocaleString()}`} icon="💰" color="bg-blue-900" />
           <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm"><h3 className="font-black text-slate-800 mb-10 uppercase tracking-[0.3em] text-[10px]">Monthly Dynamics</h3><div className="h-[400px]"><RevenueChart clients={clients} /></div></div>
-        </div>
-      )}
-      {activeTab === 'reports' && (
-        <div className="space-y-8 max-w-5xl mx-auto animate-in slide-in-from-bottom-8">
-          <div className="bg-white p-12 rounded-[3rem] border border-slate-200 shadow-sm text-center">
-              <h2 className="text-3xl font-bold text-slate-950 mb-4 tracking-tight">Strategic Intelligence Analysis</h2>
-              <p className="text-slate-600 mb-8 font-semibold max-w-2xl mx-auto">Generate high-fidelity reports using <span className="text-blue-600">Google Gemini 3</span> artificial intelligence to identify trends and conversion risks.</p>
-              
-              <div className="mb-8 max-w-2xl mx-auto">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 text-left">Custom Analysis Prompt (Optional)</label>
-                <textarea 
-                  value={customPrompt}
-                  onChange={e => setCustomPrompt(e.target.value)}
-                  placeholder="e.g. Analyze our conversion rate for Bangladesh vs other countries, or suggest a marketing strategy for the next 6 months..."
-                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-slate-900 font-medium text-sm min-h-[120px] resize-none"
-                />
-              </div>
-
-              <div className="flex flex-wrap justify-center gap-4">
-                <button 
-                  onClick={async () => { 
-                    setIsGeneratingReport(true); 
-                    const r = await generateSmartReport(clients, customPrompt.trim() || undefined); 
-                    setAiReport(r); 
-                    setIsGeneratingReport(false); 
-                  }} 
-                  disabled={isGeneratingReport || clients.length === 0} 
-                  className="bg-slate-950 text-white px-12 py-5 rounded-2xl font-bold uppercase tracking-widest text-[10px] shadow-2xl active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {isGeneratingReport ? '🤖 AI Core Processing...' : '🚀 Execute Analysis Engine'}
-                </button>
-                
-                {aiReport && (
-                  <button 
-                    onClick={() => setIsPreviewOpen(true)}
-                    className="bg-white text-slate-900 border border-slate-200 px-8 py-5 rounded-2xl font-bold uppercase tracking-widest text-[10px] shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
-                  >
-                    👁️ Preview Report
-                  </button>
-                )}
-              </div>
-          </div>
-
-          {aiReport && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center px-4">
-                <h3 className="font-bold text-slate-900 uppercase tracking-wider text-xs">Generated Insight</h3>
-                <button 
-                  onClick={handleDownloadPDF}
-                  className="flex items-center gap-2 text-blue-600 font-bold uppercase tracking-widest text-[10px] hover:underline"
-                >
-                  📥 Download PDF Report
-                </button>
-              </div>
-              <div className="bg-white p-12 md:p-16 rounded-[3rem] border border-slate-200 shadow-2xl animate-in zoom-in-95">
-                <div id="report-content" ref={reportRef} className="prose prose-slate max-w-none text-slate-900 p-4">
-                  <div className="mb-12 border-b-4 border-slate-900 pb-8">
-                    <h1 className="text-4xl font-bold tracking-tight uppercase mb-2">{appConfig.agencyName}</h1>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Strategic Intelligence Report • {new Date().toLocaleDateString()}</p>
-                  </div>
-                  <div dangerouslySetInnerHTML={{ __html: formatMarkdown(aiReport) }} />
-                  <div className="mt-20 pt-8 border-t border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-widest text-center">
-                    Confidential Internal Document • Generated by Gemini AI Systems
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {isPreviewOpen && aiReport && (
-        <div className="fixed inset-0 bg-white z-[200] flex flex-col animate-in fade-in duration-300">
-          <div className="px-6 md:px-10 py-4 md:py-6 bg-slate-900 text-white flex justify-between items-center shrink-0 shadow-xl">
-            <div className="flex items-center gap-4 md:gap-6">
-              <button 
-                onClick={() => setIsPreviewOpen(false)}
-                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all active:scale-95"
-              >
-                <span className="text-lg">←</span> Go Back
-              </button>
-              <div className="hidden sm:block h-8 w-px bg-slate-700"></div>
-              <h3 className="font-bold text-xs uppercase tracking-widest hidden md:block">Strategic Intelligence Preview</h3>
-            </div>
-            <div className="flex items-center gap-3 md:gap-4">
-              <button 
-                onClick={handleDownloadPDF}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-5 md:px-8 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all shadow-lg shadow-blue-500/20 active:scale-95"
-              >
-                Download PDF
-              </button>
-              <button onClick={() => setIsPreviewOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-3xl leading-none font-light">&times;</button>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto bg-slate-100 p-4 md:p-12 lg:p-20 custom-scrollbar">
-            <div className="bg-white shadow-2xl rounded-[2rem] md:rounded-[3rem] mx-auto max-w-5xl overflow-hidden border border-slate-200">
-              <div id="report-content-preview" className="p-8 md:p-16 lg:p-24">
-                <div className="mb-12 border-b-4 border-slate-900 pb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                  <div>
-                    <h1 className="text-3xl md:text-5xl font-bold tracking-tight uppercase mb-2 text-slate-900">{appConfig.agencyName}</h1>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Strategic Intelligence Report</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Generated On</p>
-                    <p className="text-sm font-bold text-slate-900">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-                  </div>
-                </div>
-                <div className="prose prose-slate max-w-none text-slate-900" dangerouslySetInnerHTML={{ __html: formatMarkdown(aiReport) }} />
-                <div className="mt-24 pt-10 border-t border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-widest text-center">
-                  Confidential Internal Document • Generated by Gemini AI Systems
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       )}
       {activeTab === 'summary' && <Summary clients={clients} agencyName={appConfig.agencyName} />}

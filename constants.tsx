@@ -7,7 +7,6 @@ export const NAVIGATION_ITEMS = [
   { id: 'disbursement', label: 'Disbursement', icon: '💸' },
   { id: 'agent-payment', label: 'Agent Payment', icon: '🤝' },
   { id: 'summary', label: 'Database Summary', icon: '📋' },
-  { id: 'reports', label: 'AI Reports', icon: '🤖' },
   { id: 'revenue', label: 'Financials', icon: '💰' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
