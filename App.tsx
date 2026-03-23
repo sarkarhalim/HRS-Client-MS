@@ -7,7 +7,6 @@ import DisbursementTab from './components/DisbursementTab';
 import AgentPaymentTab from './components/AgentPaymentTab';
 import Settings from './components/Settings';
 import Summary from './components/Summary';
-import ChatBot from './components/ChatBot';
 import { StatusDistribution, RevenueChart } from './components/Charts';
 import { Client, ClientStatus, AuthMode, User, Disbursement, DocumentRecord, AgentPayment } from './types';
 import { supabase } from './lib/supabase';
@@ -954,8 +953,6 @@ const App: React.FC = () => {
           <button onClick={() => setDbError(null)} className="font-black text-xl hover:scale-125 transition-transform">✕</button>
         </div>
       )}
-
-      <ChatBot clients={clients} disbursements={disbursements} agentPayments={agentPayments} />
     </Layout>
   );
 };
