@@ -14,9 +14,7 @@ async function startServer() {
       target: "https://vxyahrkunsmywmfrwpxl.supabase.co",
       changeOrigin: true,
       pathRewrite: (path) => {
-        let newPath = path.replace(/^\/api\/supabase/, "");
-        newPath = newPath.replace(/\/rest\/v1\/ap_records/, "/rest/v1/agent_payments");
-        return newPath;
+        return path.replace(/^\/api\/supabase/, "");
       },
     })
   );

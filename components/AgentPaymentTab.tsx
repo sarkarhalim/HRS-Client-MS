@@ -137,7 +137,7 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
   const handleEdit = async (item: AgentPayment) => {
     try {
       const { data, error } = await supabase
-        .from('ap_records')
+        .from('agent_payments')
         .select('document_data')
         .eq('id', item.id)
         .single();
