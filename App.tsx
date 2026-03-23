@@ -251,7 +251,7 @@ const App: React.FC = () => {
   const fetchAgentPayments = async () => {
     try {
       const { data, error } = await supabase
-        .from('agent_payments')
+        .from('ap_records')
         .select('id, agent_name, project_name, description, amount, date, user_id, created_at, document_data')
         .order('date', { ascending: false });
 
@@ -580,16 +580,16 @@ const App: React.FC = () => {
     try {
       let savedId = data.id;
       if (data.id) {
-        const { error } = await supabase.from('agent_payments').update(dbAgentPayment).eq('id', data.id);
+        const { error } = await supabase.from('ap_records').update(dbAgentPayment).eq('id', data.id);
         if (error) throw error;
       } else {
-        const { data: inserted, error } = await supabase.from('agent_payments').insert(dbAgentPayment).select('id').single();
+        const { data: inserted, error } = await supabase.from('ap_records').insert(dbAgentPayment).select('id').single();
         if (error) throw error;
         savedId = inserted.id;
       }
       
       const { data: newPayment, error: fetchError } = await supabase
-        .from('agent_payments')
+        .from('ap_records')
         .select('id, agent_name, project_name, description, amount, date, user_id, created_at, document_data')
         .eq('id', savedId)
         .single();
@@ -635,7 +635,7 @@ const App: React.FC = () => {
 
   const handleDeleteAgentPayment = async (id: string) => {
     try {
-      const { error } = await supabase.from('agent_payments').delete().eq('id', id);
+      const { error } = await supabase.from('ap_records').delete().eq('id', id);
       if (error) throw error;
       setAgentPayments(prev => prev.filter(p => p.id !== id));
     } catch (err: any) {
