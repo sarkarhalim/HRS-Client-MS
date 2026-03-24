@@ -8,6 +8,7 @@ import AgentPaymentTab from './components/AgentPaymentTab';
 import Settings from './components/Settings';
 import Summary from './components/Summary';
 import { StatusDistribution, RevenueChart } from './components/Charts';
+import ConfirmModal from './components/ConfirmModal';
 import { Client, ClientStatus, AuthMode, User, Disbursement, DocumentRecord, AgentPayment } from './types';
 import { supabase } from './lib/supabase';
 import { NAVIGATION_ITEMS } from './constants';
@@ -78,6 +79,7 @@ const App: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | undefined>();
   const [viewingClient, setViewingClient] = useState<Client | undefined>();
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string, type: 'client' | 'disbursement' | 'agent-payment', title: string, message: string } | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -550,13 +552,12 @@ const App: React.FC = () => {
   };
 
   const handleDeleteDisbursement = async (id: string) => {
-    try {
-      const { error } = await supabase.from('disbursements').delete().eq('id', id);
-      if (error) throw error;
-      setDisbursements(prev => prev.filter(d => d.id !== id));
-    } catch (err: any) {
-      setDbError(`Deletion Error: ${err.message}`);
-    }
+    setConfirmDelete({
+      id,
+      type: 'disbursement',
+      title: 'Delete Disbursement',
+      message: 'Are you sure you want to delete this disbursement record? This action cannot be undone.'
+    });
   };
 
   const handleSaveAgentPayment = async (data: Partial<AgentPayment>) => {
@@ -633,12 +634,35 @@ const App: React.FC = () => {
   };
 
   const handleDeleteAgentPayment = async (id: string) => {
+    setConfirmDelete({
+      id,
+      type: 'agent-payment',
+      title: 'Delete Agent Payment',
+      message: 'Are you sure you want to delete this agent payment record? This action cannot be undone.'
+    });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete) return;
+    const { id, type } = confirmDelete;
     try {
-      const { error } = await supabase.from('agent_payments').delete().eq('id', id);
-      if (error) throw error;
-      setAgentPayments(prev => prev.filter(p => p.id !== id));
+      if (type === 'client') {
+        const { error } = await supabase.from('clients').delete().eq('id', id);
+        if (error) throw error;
+        setClients(prev => prev.filter(c => c.id !== id));
+      } else if (type === 'disbursement') {
+        const { error } = await supabase.from('disbursements').delete().eq('id', id);
+        if (error) throw error;
+        setDisbursements(prev => prev.filter(d => d.id !== id));
+      } else if (type === 'agent-payment') {
+        const { error } = await supabase.from('agent_payments').delete().eq('id', id);
+        if (error) throw error;
+        setAgentPayments(prev => prev.filter(p => p.id !== id));
+      }
     } catch (err: any) {
       setDbError(`Deletion Error: ${err.message}`);
+    } finally {
+      setConfirmDelete(null);
     }
   };
 
@@ -918,7 +942,7 @@ const App: React.FC = () => {
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                               <button onClick={() => setViewingClient(c)} className="p-2.5 text-slate-500 hover:text-slate-900 bg-white rounded-xl border border-slate-200" title="Inspect Profile">👁️</button>
                               <button onClick={() => { setEditingClient(c); setIsFormOpen(true); }} className="p-2.5 text-slate-500 hover:text-blue-600 bg-white rounded-xl border border-slate-200" title="Modify Entry">✏️</button>
-                              <button onClick={() => { supabase.from('clients').delete().eq('id', c.id).then(({error}) => { if(!error) setClients(prev => prev.filter(client => client.id !== c.id)); else setDbError(error.message); }); }} className="p-2.5 text-slate-500 hover:text-rose-600 bg-white rounded-xl border border-slate-200" title="Wipe Record">🗑️</button>
+                              <button onClick={() => setConfirmDelete({ id: c.id, type: 'client', title: 'Delete Client', message: 'Are you sure you want to delete this client and all associated records? This action cannot be undone.' })} className="p-2.5 text-slate-500 hover:text-rose-600 bg-white rounded-xl border border-slate-200" title="Wipe Record">🗑️</button>
                             </div>
                           </td>
                         </tr>
@@ -953,6 +977,14 @@ const App: React.FC = () => {
           <button onClick={() => setDbError(null)} className="font-black text-xl hover:scale-125 transition-transform">✕</button>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmDelete}
+        title={confirmDelete?.title || ''}
+        message={confirmDelete?.message || ''}
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </Layout>
   );
 };
