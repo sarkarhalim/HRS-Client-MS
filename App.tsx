@@ -9,6 +9,7 @@ import Settings from './components/Settings';
 import Summary from './components/Summary';
 import { StatusDistribution, RevenueChart } from './components/Charts';
 import ConfirmModal from './components/ConfirmModal';
+import { ReportPreviewModal, ColumnDef } from './components/ReportPreviewModal';
 import { Client, ClientStatus, AuthMode, User, Disbursement, DocumentRecord, AgentPayment } from './types';
 import { supabase } from './lib/supabase';
 import { NAVIGATION_ITEMS } from './constants';
@@ -82,6 +83,7 @@ const App: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string, type: 'client' | 'disbursement' | 'agent-payment', title: string, message: string } | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'total-clients') {
@@ -906,6 +908,12 @@ const App: React.FC = () => {
                   {filteredClients.length} {filteredClients.length === 1 ? 'Client' : 'Clients'} Found
                 </div>
                 <div className="flex flex-col md:flex-row gap-4 items-center">
+                  <button 
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-slate-500/30 active:scale-95 transition-all w-full md:w-auto flex items-center justify-center gap-2"
+                  >
+                    <span>📄</span> Preview & Download Report
+                  </button>
                   {projectFilter !== 'All' && (
                     <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl border border-blue-100">
                       <span className="text-[10px] font-bold uppercase tracking-widest">Project: {projectFilter}</span>
@@ -970,6 +978,24 @@ const App: React.FC = () => {
       
       {isFormOpen && <ClientForm initialData={editingClient} existingClients={clients} onSubmit={handleSaveClient} onClose={() => { setIsFormOpen(false); setEditingClient(undefined); }} />}
       {viewingClient && <ClientDetails client={viewingClient} onClose={() => setViewingClient(undefined)} />}
+
+      {isReportModalOpen && (
+        <ReportPreviewModal<Client>
+          title={`Client Directory Report${projectFilter !== 'All' ? ` - ${projectFilter}` : ''}${statusFilter !== 'All' ? ` (${statusFilter})` : ''}${searchQuery.trim() ? ` of ${searchQuery.trim()}` : ''}`}
+          columns={[
+            { header: 'Name', accessor: 'name' },
+            { header: 'Passport No.', accessor: 'passportNumber' },
+            { header: 'Country', accessor: 'country' },
+            { header: 'Status', accessor: 'status' },
+            { header: 'Project', accessor: 'projectName' },
+            { header: 'Agent/Reference', accessor: 'reference' },
+            { header: 'Agency', accessor: 'agencyName' },
+            { header: 'Date Applied', accessor: (row) => new Date(row.createdAt).toLocaleDateString() }
+          ]}
+          data={filteredClients}
+          onClose={() => setIsReportModalOpen(false)}
+        />
+      )}
 
       {dbError && (
         <div className="fixed bottom-6 right-6 bg-rose-600 text-white px-6 py-4 rounded-2xl shadow-2xl text-[10px] font-black uppercase tracking-widest z-[100] animate-in slide-in-from-right flex items-center gap-4">

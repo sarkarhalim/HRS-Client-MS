@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { AgentPayment, DocumentRecord, Client } from '../types';
 import { supabase } from '../lib/supabase';
+import { ReportPreviewModal } from './ReportPreviewModal';
 
 interface AgentPaymentTabProps {
   agentPayments: AgentPayment[];
@@ -19,6 +20,7 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
   const [searchQuery, setSearchQuery] = useState('');
   const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   
   // Form State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -378,6 +380,12 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-lg">🔍</span>
               </div>
               <button 
+                onClick={() => setIsReportModalOpen(true)}
+                className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-slate-500/20 hover:bg-slate-900 transition-all flex items-center gap-2 whitespace-nowrap active:scale-95"
+              >
+                <span>📄</span> Preview & Download Report
+              </button>
+              <button 
                 onClick={() => setIsFormOpen(true)}
                 className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center gap-3 whitespace-nowrap active:scale-95"
               >
@@ -508,6 +516,21 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
             )}
           </div>
         </div>
+      )}
+
+      {isReportModalOpen && (
+        <ReportPreviewModal<AgentPayment>
+          title={`Agent Payments Report${searchQuery.trim() ? ` of ${searchQuery.trim()}` : ''}`}
+          columns={[
+            { header: 'Date', accessor: 'date' },
+            { header: 'Agent Name', accessor: 'agentName' },
+            { header: 'Project Name', accessor: 'projectName' },
+            { header: 'Purpose', accessor: 'purpose' },
+            { header: 'Amount', accessor: (row) => `৳${Number(row.amount).toLocaleString()}` }
+          ]}
+          data={filteredAndSorted}
+          onClose={() => setIsReportModalOpen(false)}
+        />
       )}
 
       {/* Input Modal with Enhanced Contrast Fields */}
