@@ -790,7 +790,7 @@ const App: React.FC = () => {
             <div className="relative flex-1 max-w-md w-full">
               <input 
                 type="text" 
-                placeholder="Search clients by Name, Passport, Project, Email, Phone..." 
+                placeholder="Search clients by Name, Passport, Country, Project, Email, Phone..." 
                 value={searchQuery} 
                 onChange={e => {
                   setSearchQuery(e.target.value);

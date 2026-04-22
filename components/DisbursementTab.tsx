@@ -340,7 +340,7 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
               <div className="relative flex-1 md:w-80">
                 <input 
                   type="text" 
-                  placeholder="Deep search by purpose or mode..." 
+                  placeholder="Deep search by purpose, mode or country..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-300 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold text-slate-900 placeholder-slate-500"

@@ -72,7 +72,8 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
   const filteredAndSorted = useMemo(() => {
     let result = agentPayments.filter(d => 
       (d.purpose || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (d.agentName || '').toLowerCase().includes(searchQuery.toLowerCase())
+      (d.agentName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (d.projectName || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     result.sort((a, b) => {
@@ -372,7 +373,7 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
               <div className="relative flex-1 md:w-80">
                 <input 
                   type="text" 
-                  placeholder="Deep search by purpose or agent..." 
+                  placeholder="Deep search by purpose, agent or country (project)..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-300 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold text-slate-900 placeholder-slate-500"
