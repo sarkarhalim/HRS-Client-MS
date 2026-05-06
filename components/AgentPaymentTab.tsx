@@ -73,7 +73,9 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
     let result = agentPayments.filter(d => 
       (d.purpose || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (d.agentName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (d.projectName || '').toLowerCase().includes(searchQuery.toLowerCase())
+      (d.projectName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (d.date || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.amount.toString().includes(searchQuery)
     );
 
     result.sort((a, b) => {
@@ -282,20 +284,47 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Sub-Tabs Navigation */}
-      <div className="flex bg-slate-200 p-1.5 rounded-2xl w-fit shadow-inner">
-        <button 
-          onClick={() => setActiveSubTab('overview')}
-          className={`px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeSubTab === 'overview' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600 hover:text-slate-900'}`}
-        >
-          Ledger Overview
-        </button>
-        <button 
-          onClick={() => setActiveSubTab('history')}
-          className={`px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeSubTab === 'history' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600 hover:text-slate-900'}`}
-        >
-          History ({agentPayments.length})
-        </button>
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+        {/* Sub-Tabs Navigation */}
+        <div className="flex bg-slate-200 p-1.5 rounded-2xl w-fit shadow-inner">
+          <button 
+            onClick={() => setActiveSubTab('overview')}
+            className={`px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeSubTab === 'overview' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            Ledger Overview
+          </button>
+          <button 
+            onClick={() => setActiveSubTab('history')}
+            className={`px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeSubTab === 'history' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            History ({agentPayments.length})
+          </button>
+        </div>
+
+        {/* Persistent Search Bar for both tabs */}
+        <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
+          <div className="relative flex-1 sm:w-80">
+            <input 
+              type="text" 
+              placeholder="Deep search by Purpose, Agent, Project, Date..." 
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (e.target.value && activeSubTab !== 'history') {
+                  setActiveSubTab('history');
+                }
+              }}
+              className="w-full pl-12 pr-6 py-3 bg-white border-2 border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-slate-950 font-semibold text-sm transition-all shadow-sm"
+            />
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+          </div>
+          <button 
+            onClick={() => setIsReportModalOpen(true)}
+            className="bg-slate-800 text-white px-6 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-lg hover:bg-slate-900 transition-all flex items-center justify-center gap-2 whitespace-nowrap active:scale-95"
+          >
+            <span>📄</span> Export Report
+          </button>
+        </div>
       </div>
 
       {activeSubTab === 'overview' ? (
@@ -367,28 +396,12 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
             <div>
               <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Audit Registry</h2>
-              <p className="text-[10px] text-slate-700 font-bold uppercase tracking-widest mt-2">Filter and search through agent payments</p>
+              <p className="text-[10px] text-slate-700 font-bold uppercase tracking-widest mt-2">Comprehensive audit trail of agent payments</p>
             </div>
             <div className="flex gap-4 w-full md:w-auto">
-              <div className="relative flex-1 md:w-80">
-                <input 
-                  type="text" 
-                  placeholder="Deep search by purpose, agent or country (project)..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-300 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold text-slate-900 placeholder-slate-500"
-                />
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-lg">🔍</span>
-              </div>
-              <button 
-                onClick={() => setIsReportModalOpen(true)}
-                className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-slate-500/20 hover:bg-slate-900 transition-all flex items-center gap-2 whitespace-nowrap active:scale-95"
-              >
-                <span>📄</span> Preview & Download Report
-              </button>
               <button 
                 onClick={() => setIsFormOpen(true)}
-                className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center gap-3 whitespace-nowrap active:scale-95"
+                className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-3 whitespace-nowrap active:scale-95"
               >
                 <span>+</span> New Entry
               </button>
