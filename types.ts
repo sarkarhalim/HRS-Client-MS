@@ -46,7 +46,7 @@ export interface Disbursement {
   date: string;
   sourceFund: string;
   modeOfPayment?: string;
-  document?: DocumentRecord;
+  documents?: DocumentRecord[];
   createdAt: string;
 }
 

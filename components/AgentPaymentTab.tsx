@@ -450,8 +450,26 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
                       <td className="px-8 py-6 text-right font-bold text-rose-600 text-base">৳{Number(d.amount).toLocaleString()}</td>
                       <td className="px-8 py-6 text-center">
                         {d.documents && d.documents.length > 0 ? (
-                          <div className="flex justify-center gap-2">
-                            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">{d.documents.length} files</span>
+                          <div className="flex flex-col sm:flex-row justify-center gap-2 items-center flex-wrap font-semibold">
+                            {d.documents.map(doc => (
+                              <div key={doc.id} className="flex gap-1 items-center bg-blue-50 border border-blue-100 p-1.5 rounded-lg text-xs" title={doc.name}>
+                                <span className="text-slate-700 max-w-[80px] truncate font-semibold">{doc.name}</span>
+                                <button 
+                                  onClick={() => handlePreview(doc)} 
+                                  className="p-1 text-blue-700 hover:bg-blue-100 rounded transition-all" 
+                                  title="Inspect"
+                                >
+                                  👁️
+                                </button>
+                                <button 
+                                  onClick={() => handleDownload(doc)} 
+                                  className="p-1 text-slate-700 hover:bg-slate-200 rounded transition-all" 
+                                  title="Download"
+                                >
+                                  📥
+                                </button>
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <span className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">No Paper</span>
@@ -501,11 +519,29 @@ const AgentPaymentTab: React.FC<AgentPaymentTabProps> = ({ agentPayments, client
                       {d.projectName}
                     </span>
                   )}
-                  {d.documents && d.documents.length > 0 && (
-                    <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl shadow-sm">
-                      <span className="text-[9px] font-bold text-blue-900 uppercase tracking-widest">{d.documents.length} Docs Verified</span>
+                  {d.documents && d.documents.length > 0 ? (
+                    <div className="flex flex-col gap-2 w-full">
+                      {d.documents.map(doc => (
+                        <div key={doc.id} className="flex items-center justify-between bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl shadow-sm">
+                          <span className="text-[9px] font-bold text-blue-900 uppercase tracking-widest truncate max-w-[120px]" title={doc.name}>{doc.name}</span>
+                          <div className="flex gap-2 shrink-0">
+                            <button 
+                              onClick={() => handlePreview(doc)} 
+                              className="text-[10px] font-bold text-blue-600 hover:underline px-1 uppercase tracking-widest"
+                            >
+                              Open
+                            </button>
+                            <button 
+                              onClick={() => handleDownload(doc)} 
+                              className="text-[10px] font-bold text-blue-600 hover:underline px-1 uppercase tracking-widest"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="flex justify-between gap-3 pt-6 border-t border-slate-100 items-center">

@@ -32,24 +32,56 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
     date: new Date().toISOString().split('T')[0],
     sourceFund: '',
     modeOfPayment: 'Cash',
-    document: undefined
+    documents: []
   });
 
-  // Sync form data when editingItem changes
-  useEffect(() => {
-    if (editingItem) {
+  // Fetch full document array on edit for disbursements to sync base64 raw data
+  const handleEdit = async (item: Disbursement) => {
+    try {
+      const { data, error } = await supabase
+        .from('disbursements')
+        .select('document')
+        .eq('id', item.id)
+        .single();
+      
+      if (error) throw error;
+      
+      let parsedDocuments: DocumentRecord[] = [];
+      if (data.document) {
+        const parsed = typeof data.document === 'string' ? JSON.parse(data.document) : data.document;
+        if (Array.isArray(parsed)) {
+          parsedDocuments = parsed;
+        } else if (parsed && typeof parsed === 'object' && parsed.id) {
+          parsedDocuments = [parsed];
+        }
+      }
+      
       setFormData({
-        id: editingItem.id,
-        purpose: editingItem.purpose,
-        amount: editingItem.amount,
-        date: editingItem.date,
-        sourceFund: editingItem.sourceFund,
-        modeOfPayment: editingItem.modeOfPayment || 'Cash',
-        document: editingItem.document
+        id: item.id,
+        purpose: item.purpose,
+        amount: item.amount,
+        date: item.date,
+        sourceFund: item.sourceFund,
+        modeOfPayment: item.modeOfPayment || 'Cash',
+        documents: parsedDocuments
       });
       setIsFormOpen(true);
+      setEditingItem(item);
+    } catch (err) {
+      console.error("Failed to fetch document data for edit", err);
+      setFormData({
+        id: item.id,
+        purpose: item.purpose,
+        amount: item.amount,
+        date: item.date,
+        sourceFund: item.sourceFund,
+        modeOfPayment: item.modeOfPayment || 'Cash',
+        documents: item.documents || []
+      });
+      setIsFormOpen(true);
+      setEditingItem(item);
     }
-  }, [editingItem]);
+  };
 
   // Cleanup preview URL
   useEffect(() => {
@@ -92,29 +124,46 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
   }, [filteredAndSorted]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []) as File[];
+    if (!files.length) return;
 
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-    if (!allowedTypes.includes(file.type)) {
-      console.error('Please upload PDF, JPG, or PNG only.');
-      return;
+    const validFiles = files.filter(f => allowedTypes.includes(f.type));
+    
+    if (validFiles.length !== files.length) {
+      console.error('Some files were skipped. Please upload PDF, JPG, or PNG only.');
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData(prev => ({
-        ...prev,
-        document: {
-          id: Math.random().toString(36).substr(2, 9),
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          data: reader.result as string
-        }
-      }));
-    };
-    reader.readAsDataURL(file);
+    validFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({
+          ...prev,
+          documents: [
+            ...(Array.isArray(prev.documents) ? prev.documents : []),
+            {
+              id: Math.random().toString(36).substr(2, 9),
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              data: reader.result as string
+            }
+          ]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeDocument = (docId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      documents: (Array.isArray(prev.documents) ? prev.documents : []).filter(d => d.id !== docId)
+    }));
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -126,7 +175,7 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
       date: new Date().toISOString().split('T')[0],
       sourceFund: '',
       modeOfPayment: 'Cash',
-      document: undefined
+      documents: []
     });
     setEditingItem(null);
     setIsFormOpen(false);
@@ -181,19 +230,29 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
     }
   };
 
-  const getDocData = async (docId: string) => {
+  const getDocData = async (docId: string, disbursementId?: string) => {
+    if (!disbursementId) return null;
     setIsFetchingBlob(docId);
     try {
       const { data, error } = await supabase
         .from('disbursements')
-        .select('data:document->>data')
-        .eq('document->>id', docId)
+        .select('document')
+        .eq('id', disbursementId)
         .single();
       
       if (error) {
         throw error;
       }
-      return data.data;
+      if (data.document) {
+        const parsed = typeof data.document === 'string' ? JSON.parse(data.document) : data.document;
+        if (Array.isArray(parsed)) {
+          const matched = parsed.find(d => d.id === docId);
+          return matched ? matched.data : null;
+        } else if (parsed && typeof parsed === 'object' && parsed.id === docId) {
+          return parsed.data;
+        }
+      }
+      return null;
     } catch (e) {
       console.error("Failed to fetch document data", e);
       console.error("Failed to load document content.");
@@ -203,9 +262,9 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
     }
   };
 
-  const handleDownload = async (doc: DocumentRecord) => {
+  const handleDownload = async (doc: DocumentRecord, disbursementId?: string) => {
     // If doc has data (newly uploaded), use it. Otherwise fetch.
-    const data = doc.data || await getDocData(doc.id);
+    const data = doc.data || await getDocData(doc.id, disbursementId);
     if (!data) return;
 
     try {
@@ -225,10 +284,10 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
     }
   };
 
-  const handlePreview = async (doc: DocumentRecord) => {
+  const handlePreview = async (doc: DocumentRecord, disbursementId?: string) => {
     setPreviewDoc(doc);
     
-    const data = doc.data || await getDocData(doc.id);
+    const data = doc.data || await getDocData(doc.id, disbursementId);
     if (!data) {
       setPreviewDoc(null);
       return;
@@ -335,7 +394,7 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
                     <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-1">{d.date}</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    {d.document && <span className="text-blue-500 text-lg" title="Attachment Secure">📎</span>}
+                    {d.documents && d.documents.length > 0 && <span className="text-blue-500 text-lg" title="Attachment Secure">📎</span>}
                     <span className="text-rose-600 font-bold text-base whitespace-nowrap">৳{Number(d.amount).toLocaleString()}</span>
                   </div>
                 </div>
@@ -414,24 +473,29 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
                       </td>
                       <td className="px-8 py-6 text-right font-bold text-rose-600 text-base">৳{Number(d.amount).toLocaleString()}</td>
                       <td className="px-8 py-6 text-center">
-                        {d.document ? (
-                          <div className="flex justify-center gap-2">
-                            <button 
-                              onClick={() => handlePreview(d.document!)} 
-                              disabled={!!isFetchingBlob}
-                              className="p-2 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-all border border-blue-100 disabled:opacity-50" 
-                              title="Inspect"
-                            >
-                              {isFetchingBlob === d.document.id ? '⏳' : '👁️'}
-                            </button>
-                            <button 
-                              onClick={() => handleDownload(d.document!)} 
-                              disabled={!!isFetchingBlob}
-                              className="p-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all border border-slate-200 disabled:opacity-50" 
-                              title="Download"
-                            >
-                              {isFetchingBlob === d.document.id ? '⏳' : '📥'}
-                            </button>
+                        {d.documents && d.documents.length > 0 ? (
+                          <div className="flex flex-col sm:flex-row justify-center gap-2 items-center flex-wrap">
+                            {d.documents.map(doc => (
+                              <div key={doc.id} className="flex gap-1 items-center bg-blue-50 border border-blue-100 p-1.5 rounded-lg text-xs font-semibold text-slate-800" title={doc.name}>
+                                <span className="max-w-[80px] truncate">{doc.name}</span>
+                                <button 
+                                  onClick={() => handlePreview(doc, d.id)} 
+                                  disabled={!!isFetchingBlob}
+                                  className="p-1 text-blue-700 hover:bg-blue-100 rounded transition-all disabled:opacity-50" 
+                                  title="Inspect"
+                                >
+                                  {isFetchingBlob === doc.id ? '⏳' : '👁️'}
+                                </button>
+                                <button 
+                                  onClick={() => handleDownload(doc, d.id)} 
+                                  disabled={!!isFetchingBlob}
+                                  className="p-1 text-slate-700 hover:bg-slate-200 rounded transition-all disabled:opacity-50" 
+                                  title="Download"
+                                >
+                                  {isFetchingBlob === doc.id ? '⏳' : '📥'}
+                                </button>
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <span className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">No Paper</span>
@@ -439,7 +503,7 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
                       </td>
                       <td className="px-8 py-6 text-center whitespace-nowrap">
                         <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => setEditingItem(d)} className="text-slate-600 hover:text-blue-600 p-2.5 rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all" title="Modify Entry">✏️</button>
+                          <button onClick={() => handleEdit(d)} className="text-slate-600 hover:text-blue-600 p-2.5 rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all" title="Modify Entry">✏️</button>
                           <button onClick={() => onDelete(d.id)} className="text-slate-600 hover:text-rose-600 p-2.5 rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all" title="Remove Entry">🗑️</button>
                         </div>
                       </td>
@@ -476,33 +540,37 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
                   <span className="text-[10px] font-bold text-slate-800 uppercase bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
                     {d.sourceFund || 'Operating Capital'}
                   </span>
-                  {d.document && (
-                    <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl shadow-sm">
-                      <span className="text-[9px] font-bold text-blue-900 uppercase tracking-widest">Doc Verified</span>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => handlePreview(d.document!)} 
-                          disabled={!!isFetchingBlob}
-                          className="text-[10px] font-bold text-blue-600 hover:underline px-1 uppercase tracking-widest disabled:opacity-50"
-                        >
-                          {isFetchingBlob === d.document.id ? 'Loading...' : 'Open'}
-                        </button>
-                        <button 
-                          onClick={() => handleDownload(d.document!)} 
-                          disabled={!!isFetchingBlob}
-                          className="text-[10px] font-bold text-blue-600 hover:underline px-1 uppercase tracking-widest disabled:opacity-50"
-                        >
-                          {isFetchingBlob === d.document.id ? 'Loading...' : 'Save'}
-                        </button>
-                      </div>
+                  {d.documents && d.documents.length > 0 ? (
+                    <div className="flex flex-col gap-2 w-full">
+                      {d.documents.map(doc => (
+                        <div key={doc.id} className="flex items-center justify-between bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl shadow-sm">
+                          <span className="text-[9px] font-bold text-blue-900 uppercase tracking-widest truncate max-w-[120px]" title={doc.name}>{doc.name}</span>
+                          <div className="flex gap-2 shrink-0">
+                            <button 
+                              onClick={() => handlePreview(doc, d.id)} 
+                              disabled={!!isFetchingBlob}
+                              className="text-[10px] font-bold text-blue-600 hover:underline px-1 uppercase tracking-widest disabled:opacity-50"
+                            >
+                              {isFetchingBlob === doc.id ? 'Loading...' : 'Open'}
+                            </button>
+                            <button 
+                              onClick={() => handleDownload(doc, d.id)} 
+                              disabled={!!isFetchingBlob}
+                              className="text-[10px] font-bold text-blue-600 hover:underline px-1 uppercase tracking-widest disabled:opacity-50"
+                            >
+                              {isFetchingBlob === doc.id ? 'Loading...' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="flex justify-between gap-3 pt-6 border-t border-slate-100 items-center">
                   <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{d.modeOfPayment || 'CASH'}</div>
                   <div className="flex gap-2">
-                    <button onClick={() => setEditingItem(d)} className="px-6 py-3 bg-blue-50 text-blue-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest border border-blue-200 transition-all active:scale-95 shadow-sm">Edit ✏️</button>
+                    <button onClick={() => handleEdit(d)} className="px-6 py-3 bg-blue-50 text-blue-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest border border-blue-200 transition-all active:scale-95 shadow-sm">Edit ✏️</button>
                     <button onClick={() => onDelete(d.id)} className="px-6 py-3 bg-rose-50 text-rose-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest border border-rose-200 transition-all active:scale-95 shadow-sm">Delete 🗑️</button>
                   </div>
                 </div>
@@ -643,37 +711,57 @@ const DisbursementTab: React.FC<DisbursementTabProps> = ({ disbursements, client
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-widest mb-2">Supporting Evidence (PDF/IMG)</label>
-                  <div className="mt-1">
-                    {formData.document ? (
-                      <div className="flex items-center justify-between p-5 bg-blue-50 border border-blue-200 rounded-[1.5rem] shadow-inner">
-                        <div className="flex items-center gap-4 overflow-hidden">
-                          <span className="text-2xl">📄</span>
-                          <span className="text-xs font-bold text-blue-900 truncate">{formData.document.name}</span>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-widest mb-2">Supporting Evidence (Multiple PDF/IMG)</label>
+                  <div className="mt-1 space-y-2">
+                    {Array.isArray(formData.documents) && formData.documents.map(doc => (
+                      <div key={doc.id} className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-xl shadow-inner">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <span className="text-xl">📄</span>
+                          <span className="text-xs font-bold text-blue-900 truncate">{doc.name}</span>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => setFormData({...formData, document: undefined})}
-                          className="text-rose-600 bg-white hover:bg-rose-50 p-2.5 rounded-xl border border-rose-100 font-bold transition-all shadow-sm active:scale-90"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            type="button" 
+                            onClick={() => handlePreview(doc, formData.id)}
+                            className="text-blue-600 bg-white hover:bg-blue-100 p-1.5 rounded-lg border border-blue-200 font-bold transition-all shadow-sm"
+                            title="Preview"
+                          >
+                            👁️
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => handleDownload(doc, formData.id)}
+                            className="text-slate-600 bg-white hover:bg-slate-100 p-1.5 rounded-lg border border-slate-200 font-bold transition-all shadow-sm"
+                            title="Download"
+                          >
+                            📥
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => removeDocument(doc.id)}
+                            className="text-rose-600 bg-white hover:bg-rose-50 p-1.5 rounded-lg border border-rose-100 font-bold transition-all shadow-sm"
+                            title="Remove"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
-                    ) : (
-                      <button 
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full px-6 py-10 border-4 border-dashed border-slate-200 rounded-[2rem] text-[10px] font-bold text-slate-600 uppercase tracking-widest hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50 transition-all flex flex-col items-center gap-4 group"
-                      >
-                        <span className="text-4xl group-hover:scale-110 transition-transform">📁</span>
-                        Attach Official Receipt
-                      </button>
-                    )}
+                    ))}
+                    
+                    <button 
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full px-6 py-6 border-2 border-dashed border-slate-300 rounded-xl text-[10px] font-bold text-slate-600 uppercase tracking-widest hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50 transition-all flex flex-col items-center gap-2 group"
+                    >
+                      <span className="text-2xl group-hover:scale-110 transition-transform">📁</span>
+                      Attach Receipt Files
+                    </button>
                   </div>
                   <input 
                     type="file" 
                     ref={fileInputRef}
                     className="hidden"
+                    multiple
                     accept=".pdf,.jpg,.jpeg,.png"
                     onChange={handleFileUpload}
                   />

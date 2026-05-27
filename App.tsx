@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Layout from './components/Layout';
 import ClientForm from './components/ClientForm';
 import ClientDetails from './components/ClientDetails';
@@ -50,6 +50,8 @@ const formatMarkdown = (text: string) => {
 };
 
 const App: React.FC = () => {
+  const lastFetchTime = useRef<number>(0);
+  const fetchInProgress = useRef<boolean>(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [user, setUser] = useState<User | null>(null);
   const [authEmail, setAuthEmail] = useState('');
@@ -74,9 +76,30 @@ const App: React.FC = () => {
   const [navHistory, setNavHistory] = useState<string[]>(['dashboard']);
   const [navIndex, setNavIndex] = useState(0);
 
-  const [clients, setClients] = useState<Client[]>([]);
-  const [disbursements, setDisbursements] = useState<Disbursement[]>([]);
-  const [agentPayments, setAgentPayments] = useState<AgentPayment[]>([]);
+  const [clients, setClients] = useState<Client[]>(() => {
+    try {
+      const saved = localStorage.getItem('hrs_clients_cache');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [disbursements, setDisbursements] = useState<Disbursement[]>(() => {
+    try {
+      const saved = localStorage.getItem('hrs_disbursements_cache');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [agentPayments, setAgentPayments] = useState<AgentPayment[]>(() => {
+    try {
+      const saved = localStorage.getItem('hrs_agent_payments_cache');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | undefined>();
   const [viewingClient, setViewingClient] = useState<Client | undefined>();
@@ -123,15 +146,41 @@ const App: React.FC = () => {
   }, [navIndex, navHistory]);
 
   const fetchData = async () => {
+    if (fetchInProgress.current) {
+      console.log("Fetch already in progress, skipping.");
+      return;
+    }
+    
+    // Cooldown of 5 seconds to prevent rapid duplicate fetches
+    const now = Date.now();
+    if (now - lastFetchTime.current < 5000) {
+      console.log("Fetch requested too soon, utilizing cache.");
+      return;
+    }
+    
+    fetchInProgress.current = true;
     setDbError(null);
     try {
       await Promise.all([fetchClients(), fetchDisbursements(), fetchAgentPayments()]);
+      lastFetchTime.current = Date.now();
     } catch (e: any) {
       console.error("Fetch error", e);
-      if (e.message?.includes('Failed to fetch')) {
-        setDbError('Cloud sync interrupted. Retrying in 5s...');
-        setTimeout(fetchData, 5000);
+      const isRateLimit = e.message?.toLowerCase().includes('rate') || 
+                          e.message?.toLowerCase().includes('limit') || 
+                          e.message?.toLowerCase().includes('exceeded') || 
+                          e.message?.toLowerCase().includes('429');
+      
+      if (isRateLimit) {
+        setDbError('Cloud rate limit exceeded. Displaying local data cache. Retrying in 15s...');
+        setTimeout(fetchData, 15000);
+      } else if (e.message?.includes('Failed to fetch')) {
+        setDbError('Cloud sync interrupted. Showing cached data. Retrying in 10s...');
+        setTimeout(fetchData, 10000);
+      } else {
+        setDbError(`Cloud sync warning: ${e.message || 'database response delayed'}. Showing cached data.`);
       }
+    } finally {
+      fetchInProgress.current = false;
     }
   };
 
@@ -177,7 +226,37 @@ const App: React.FC = () => {
     if (authMode === 'authenticated' && user) {
       fetchData();
     }
-  }, [authMode, user]);
+  }, [authMode, user?.id]);
+
+  useEffect(() => {
+    if (authMode === 'authenticated' && clients && clients.length > 0) {
+      try {
+        localStorage.setItem('hrs_clients_cache', JSON.stringify(clients));
+      } catch (e) {
+        console.warn('localStorage sync failed for clients', e);
+      }
+    }
+  }, [clients, authMode]);
+
+  useEffect(() => {
+    if (authMode === 'authenticated' && disbursements && disbursements.length > 0) {
+      try {
+        localStorage.setItem('hrs_disbursements_cache', JSON.stringify(disbursements));
+      } catch (e) {
+        console.warn('localStorage sync failed for disbursements', e);
+      }
+    }
+  }, [disbursements, authMode]);
+
+  useEffect(() => {
+    if (authMode === 'authenticated' && agentPayments && agentPayments.length > 0) {
+      try {
+        localStorage.setItem('hrs_agent_payments_cache', JSON.stringify(agentPayments));
+      } catch (e) {
+        console.warn('localStorage sync failed for agentPayments', e);
+      }
+    }
+  }, [agentPayments, authMode]);
 
   const fetchClients = async () => {
     try {
@@ -204,8 +283,24 @@ const App: React.FC = () => {
       }));
 
       setClients(mappedClients);
+      try {
+        localStorage.setItem('hrs_clients_cache', JSON.stringify(mappedClients));
+      } catch (cacheErr) {
+        console.warn('Failed to write clients cache:', cacheErr);
+      }
     } catch (err: any) {
       console.error('Error fetching clients:', err.message);
+      try {
+        const saved = localStorage.getItem('hrs_clients_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.length > 0) {
+            setClients(parsed);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Failed to load clients fallback cache:', cacheErr);
+      }
       throw err;
     }
   };
@@ -214,7 +309,7 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('disbursements')
-        .select('id, purpose, amount, date, source_fund, mode_of_payment, created_at, doc_id:document->>id, doc_name:document->>name, doc_type:document->>type, doc_size:document->>size')
+        .select('id, purpose, amount, date, source_fund, mode_of_payment, created_at, document')
         .order('date', { ascending: false });
 
       if (error) {
@@ -223,30 +318,61 @@ const App: React.FC = () => {
       }
 
       const mapped: Disbursement[] = (data || []).map(d => {
-        let doc: any = undefined;
-        if (d.doc_id) {
-          doc = {
-            id: d.doc_id,
-            name: d.doc_name,
-            type: d.doc_type,
-            size: Number(d.doc_size)
-          };
+        let docs: DocumentRecord[] = [];
+        if (d.document) {
+          try {
+            const parsed = typeof d.document === 'string' ? JSON.parse(d.document) : d.document;
+            if (Array.isArray(parsed)) {
+              docs = parsed.map((item: any) => ({
+                id: item.id,
+                name: item.name,
+                type: item.type,
+                size: Number(item.size),
+                data: '' // Strip Base64 on startup for memory efficiency, fetch on-demand
+              }));
+            } else if (parsed && typeof parsed === 'object' && parsed.id) {
+              docs = [{
+                id: parsed.id,
+                name: parsed.name,
+                type: parsed.type,
+                size: Number(parsed.size),
+                data: ''
+              }];
+            }
+          } catch (e) {
+            console.error("Failed to parse document for disbursement", d.id, e);
+          }
         }
         return {
-          ...d,
           id: d.id,
           purpose: d.purpose,
           amount: Number(d.amount),
           date: d.date,
           sourceFund: d.source_fund,
           modeOfPayment: d.mode_of_payment,
-          document: doc,
+          documents: docs,
           createdAt: d.created_at
         };
       });
       setDisbursements(mapped);
+      try {
+        localStorage.setItem('hrs_disbursements_cache', JSON.stringify(mapped));
+      } catch (cacheErr) {
+        console.warn('Failed to write disbursements cache:', cacheErr);
+      }
     } catch (err: any) {
       console.error('Error fetching disbursements:', err.message);
+      try {
+        const saved = localStorage.getItem('hrs_disbursements_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.length > 0) {
+            setDisbursements(parsed);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Failed to load disbursements fallback cache:', cacheErr);
+      }
       throw err;
     }
   };
@@ -273,7 +399,7 @@ const App: React.FC = () => {
             console.error('Failed to parse document_data', e);
           }
         }
-        return {
+         return {
           ...d,
           id: d.id,
           agentName: d.agent_name,
@@ -286,9 +412,25 @@ const App: React.FC = () => {
         };
       });
       setAgentPayments(mapped);
+      try {
+        localStorage.setItem('hrs_agent_payments_cache', JSON.stringify(mapped));
+      } catch (cacheErr) {
+        console.warn('Failed to write agent payments cache:', cacheErr);
+      }
     } catch (err: any) {
       console.error('Error fetching agent payments:', err.message);
-      // Don't throw to prevent crashing if table doesn't exist yet
+      try {
+        const saved = localStorage.getItem('hrs_agent_payments_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.length > 0) {
+            setAgentPayments(parsed);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Failed to load agent payments fallback cache:', cacheErr);
+      }
+      throw err;
     }
   };
 
@@ -495,9 +637,10 @@ const App: React.FC = () => {
       user_id: user.id
     };
 
-    // Only include document if it's new (has data)
-    if (data.document && data.document.data && data.document.data.startsWith('data:')) {
-      dbDisbursement.document = data.document;
+    if (data.documents && data.documents.length > 0) {
+      dbDisbursement.document = data.documents;
+    } else {
+      dbDisbursement.document = null;
     }
 
     try {
@@ -513,11 +656,36 @@ const App: React.FC = () => {
       
       const { data: newDisbursement, error: fetchError } = await supabase
         .from('disbursements')
-        .select('id, purpose, amount, date, source_fund, mode_of_payment, created_at, doc_id:document->>id, doc_name:document->>name, doc_type:document->>type, doc_size:document->>size')
+        .select('id, purpose, amount, date, source_fund, mode_of_payment, created_at, document')
         .eq('id', savedId)
         .single();
         
       if (!fetchError && newDisbursement) {
+        let docs: DocumentRecord[] = [];
+        if (newDisbursement.document) {
+          try {
+            const parsed = typeof newDisbursement.document === 'string' ? JSON.parse(newDisbursement.document) : newDisbursement.document;
+            if (Array.isArray(parsed)) {
+              docs = parsed.map((item: any) => ({
+                id: item.id,
+                name: item.name,
+                type: item.type,
+                size: Number(item.size),
+                data: ''
+              }));
+            } else if (parsed && typeof parsed === 'object' && parsed.id) {
+              docs = [{
+                id: parsed.id,
+                name: parsed.name,
+                type: parsed.type,
+                size: Number(parsed.size),
+                data: ''
+              }];
+            }
+          } catch (e) {
+            console.error("Failed to parse document for saved disbursement", e);
+          }
+        }
         const mapped: Disbursement = {
           id: newDisbursement.id,
           purpose: newDisbursement.purpose,
@@ -526,13 +694,7 @@ const App: React.FC = () => {
           sourceFund: newDisbursement.source_fund,
           modeOfPayment: newDisbursement.mode_of_payment,
           createdAt: newDisbursement.created_at,
-          document: newDisbursement.doc_id ? {
-            id: newDisbursement.doc_id,
-            name: newDisbursement.doc_name,
-            type: newDisbursement.doc_type,
-            size: Number(newDisbursement.doc_size),
-            data: ''
-          } : undefined
+          documents: docs
         };
         setDisbursements(prev => {
           const index = prev.findIndex(d => d.id === savedId);
