@@ -190,6 +190,7 @@ const ClientDetails: React.FC<ClientDetailsProps> = ({ client, onClose }) => {
             <section>
               <h4 className="text-xs font-bold text-blue-600 uppercase mb-4 pb-2 border-b-2 border-blue-50">Agency & Reference</h4>
               <InfoRow label="Project Name" value={client.projectName || 'N/A'} />
+              <InfoRow label="Profession" value={client.profession || 'N/A'} />
               <InfoRow label="Agent Name" value={client.agencyName} />
               <InfoRow label="Lead Reference" value={client.reference} />
               <InfoRow label="Created Date" value={new Date(client.createdAt).toLocaleDateString()} />

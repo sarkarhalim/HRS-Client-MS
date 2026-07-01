@@ -22,6 +22,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ initialData, existingClients, o
       reference: '',
       passportNumber: '',
       projectName: '',
+      profession: '',
       agencyName: '',
       status: ClientStatus.PENDING,
       payments: [],
@@ -362,6 +363,17 @@ const ClientForm: React.FC<ClientFormProps> = ({ initialData, existingClients, o
                     onChange={(e) => setFormData({...formData, projectName: e.target.value})}
                     className={inputClass}
                     placeholder="e.g. Winter Intake 2026"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-800 mb-1">Profession</label>
+                  <input 
+                    type="text" 
+                    value={formData.profession || ''}
+                    onChange={(e) => setFormData({...formData, profession: e.target.value})}
+                    className={inputClass}
+                    placeholder="e.g. Painter, Driver, etc."
                   />
                 </div>
 

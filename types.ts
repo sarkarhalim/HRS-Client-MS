@@ -31,6 +31,7 @@ export interface Client {
   reference: string;
   passportNumber: string;
   projectName?: string;
+  profession?: string;
   agencyName: string;
   status: ClientStatus;
   totalFees?: number;

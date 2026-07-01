@@ -275,6 +275,7 @@ const App: React.FC = () => {
         ...c,
         passportNumber: c.passport_number,
         projectName: c.project_name,
+        profession: c.profession,
         agencyName: c.agency_name,
         totalFees: c.total_fees,
         createdAt: c.created_at,
@@ -489,13 +490,14 @@ const App: React.FC = () => {
       reference: data.reference,
       passport_number: data.passportNumber,
       project_name: data.projectName,
+      profession: data.profession || null,
       agency_name: data.agencyName,
       status: data.status,
       total_fees: data.totalFees,
       user_id: user.id
     };
 
-    // Remove project_name or total_fees if it's causing issues (temporary safety)
+    // Remove project_name, total_fees or profession if it's causing issues (temporary safety)
     // In a real app, we'd want the DB to match the code, but this prevents a hard crash
     // if the user hasn't run the SQL yet.
     try {
@@ -521,6 +523,10 @@ const App: React.FC = () => {
             } else if (error.message.includes('total_fees')) {
               delete currentData.total_fees;
               setDbError("Database: 'total_fees' column missing. Please run the SQL fix.");
+              continue;
+            } else if (error.message.includes('profession')) {
+              delete currentData.profession;
+              setDbError("Database: 'profession' column missing. Please run SQL command: ALTER TABLE clients ADD COLUMN IF NOT EXISTS profession text;");
               continue;
             }
             throw error;
@@ -597,6 +603,7 @@ const App: React.FC = () => {
           ...updatedClientData,
           passportNumber: updatedClientData.passport_number,
           projectName: updatedClientData.project_name,
+          profession: updatedClientData.profession,
           agencyName: updatedClientData.agency_name,
           totalFees: updatedClientData.total_fees,
           createdAt: updatedClientData.created_at,
